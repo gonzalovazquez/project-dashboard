@@ -1,0 +1,18 @@
+{
+  "name": "project-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Desktop dashboard for finishing local projects",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "scan": "tsx src/main/cli.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
