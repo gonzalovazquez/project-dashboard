@@ -3,7 +3,7 @@ import {
   fail, ok,
   type Appearance, type LinkKind, type NotionStatus, type ProjectUpdate, type PublicSettings, type Result, type SettingsPatch, type Snapshot, type SwapChoice,
 } from '../../shared/ipc.js';
-import { kill, park, promote, unpark } from '../../shared/rules.js';
+import { kill, park, promote, ship, unpark } from '../../shared/rules.js';
 import type { NotionBackend } from '../notion/backend.js';
 import type { PageChange } from '../notion/gateway.js';
 import { hasChanges } from '../notion/schema.js';
@@ -41,6 +41,8 @@ function diffNotion(before: NotionInfo, after: NotionInfo): { change: PageChange
   const change: PageChange = {};
   const revert: PageChange = {};
   if (before.focus !== after.focus) { change.focus = after.focus; revert.focus = before.focus; }
+  if (before.stage !== after.stage) { change.stage = after.stage; revert.stage = before.stage; }
+  if (before.stageChangedAt !== after.stageChangedAt) { change.stageChangedAt = after.stageChangedAt ?? null; revert.stageChangedAt = before.stageChangedAt ?? null; }
   if (before.life !== after.life) { change.life = after.life; revert.life = before.life; }
   if (before.parkReason !== after.parkReason) { change.parkReason = after.parkReason ?? null; revert.parkReason = before.parkReason ?? null; }
   if (before.revisitOn !== after.revisitOn) { change.revisitOn = after.revisitOn ?? null; revert.revisitOn = before.revisitOn ?? null; }
@@ -238,6 +240,31 @@ export class DashboardService {
 
   async kill(name: string): Promise<Result> {
     return this.applyRule((ps) => this.eligible(ps, name) ?? { ok: true, projects: kill(ps, name) });
+  }
+
+  async markShipped(name: string): Promise<Result> {
+    const p = this.projects.find((x) => x.name === name);
+    const label = p?.notion?.title ?? name;
+    const r = await this.applyRule((ps) => {
+      const out = ship(ps, name, this.now());
+      if (out.ok) return out;
+      const message = {
+        'not-found': `No project named ${name}.`,
+        'not-eligible': `${label} cannot be shipped. It must be tracked, active and not already shipped.`,
+        'no-criteria': `${label} has no ship criteria, so there is nothing to finish. Add a checklist on its Notion page first.`,
+        'criteria-open': `${out.open} ${out.open === 1 ? 'criterion is' : 'criteria are'} still open on ${label}.`,
+      }[out.error];
+      return { ok: false, error: { code: out.error, message } };
+    });
+    // The page just changed stage, so make the stage snapshot agree and the next scan does not stamp it a second time.
+    if (r.ok && p?.notion) {
+      try {
+        const snap = await loadSnapshot(this.d.stageSnapshotPath);
+        snap[p.notion.pageId] = { stage: 'General Available', seenAt: this.now().toISOString() };
+        await saveSnapshot(this.d.stageSnapshotPath, snap);
+      } catch { /* the worst case is one repeated stamp with the same date */ }
+    }
+    return r;
   }
 
   async unpark(name: string): Promise<Result> {

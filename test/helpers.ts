@@ -40,7 +40,7 @@ export function makeRepo(dir: string, opts: RepoOpts = {}) {
 export function project(over: Partial<Project> & { name: string }, notion?: Partial<NonNullable<Project['notion']>>): Project {
   const criteria: Criterion[] = notion?.criteria ?? [];
   return {
-    path: `/dev/${over.name}`, isGit: true, dirty: false, weekly: new Array(12).fill(0), tech: [], languages: [],
+    path: `/dev/${over.name}`, isGit: true, dirty: false, weekly: new Array(12).fill(0), daily: new Array(84).fill(0), recentCommits: [], tech: [], languages: [],
     complexity: { score: 50, level: 'Medium', parts: [] },
     pulse: { score: 2, level: 'Warm', lastActivityDays: 3 },
     ...over,

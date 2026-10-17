@@ -47,7 +47,7 @@ export async function harness(o: HarnessOptions = {}) {
     save: async (patch) => { settings = { ...settings, ...patch }; return settings; },
   };
   const cache: Cache = {
-    load: async () => (o.cached ? { version: 1, projects: o.cached } : undefined),
+    load: async () => (o.cached ? { version: 2, projects: o.cached } : undefined),
     save: async (d) => { saved.push(d); },
   };
   let token: string | undefined = o.token === null ? undefined : o.token ?? 'secret_token';

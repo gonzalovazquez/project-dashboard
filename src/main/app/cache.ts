@@ -1,7 +1,8 @@
 import type { Project } from '../../shared/types.js';
 import { readJson, writeJsonAtomic } from './jsonFile.js';
 
-const VERSION = 1;
+/** Bumped when the shape of a project changes, so an old cache is ignored instead of misread. */
+const VERSION = 2;
 
 export interface CacheData { version: number; scannedAt?: string; projects: Project[] }
 

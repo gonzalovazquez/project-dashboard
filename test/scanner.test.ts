@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { computeComplexity, hasTests, infraMarkers, levelFor } from '../src/main/scanner/complexity.js';
-import { normalizeRemote, weeklyBuckets } from '../src/main/scanner/git.js';
+import { dailyBuckets, normalizeRemote, recentCommits, weeklyBuckets } from '../src/main/scanner/git.js';
 import { computePulse } from '../src/main/scanner/pulse.js';
 import { scanProject, scanRoot } from '../src/main/scanner/scan.js';
 import { detectTech, languageShares } from '../src/main/scanner/tech.js';
@@ -148,5 +148,75 @@ describe('scanRoot', () => {
     writeFiles(join(root, 'child'), { 'a.txt': 'x' });
     const r = await scanProject(join(root, 'child'), 'child', NOW);
     expect(r.isGit).toBe(false);
+  });
+});
+
+describe('what counts as a commit', () => {
+  it('does not count stashes, which git log --all would include', async () => {
+    const dir = join(tmp(), 'stashy');
+    makeRepo(dir, { commitsDaysAgo: [5] });
+    writeFiles(dir, { 'c0.txt': 'changed' });
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'stash', 'push', '-q', '-m', 'wip'], { cwd: dir, env: { ...process.env, GIT_AUTHOR_DATE: NOW.toISOString(), GIT_COMMITTER_DATE: NOW.toISOString() } });
+    const r = await scanProject(dir, 'stashy', NOW);
+    expect(r.weekly.reduce((a, c) => a + c, 0)).toBe(1);
+    expect(r.weekly[11]).toBe(1); // the one real commit, 5 days ago; the stash adds nothing
+    expect(r.recentCommits.map((c) => c.message)).toEqual(['c0']);
+  });
+});
+
+describe('dailyBuckets', () => {
+  it('puts the last 24 hours in the last bucket and drops anything older than 84 days', () => {
+    const b = dailyBuckets([daysAgo(0), daysAgo(0.5), daysAgo(1), daysAgo(83.5), daysAgo(84), daysAgo(300)], NOW);
+    expect(b).toHaveLength(84);
+    expect(b[83]).toBe(2);
+    expect(b[82]).toBe(1);
+    expect(b[0]).toBe(1);
+    expect(b.reduce((a, c) => a + c, 0)).toBe(4);
+  });
+  it('ignores commits dated in the future', () => expect(dailyBuckets([new Date(NOW.getTime() + 1000)], NOW).every((c) => c === 0)).toBe(true));
+  it('sums seven days at a time to exactly the weekly buckets', () => {
+    const dates = Array.from({ length: 60 }, (_, i) => daysAgo((i * 37) % 90 + (i % 7) / 10));
+    const daily = dailyBuckets(dates, NOW);
+    const weekly = weeklyBuckets(dates, NOW);
+    expect(weekly).toEqual(Array.from({ length: 12 }, (_, w) => daily.slice(w * 7, w * 7 + 7).reduce((a, c) => a + c, 0)));
+  });
+});
+
+describe('recentCommits', () => {
+  it('returns the newest subjects first and stops at the limit', async () => {
+    const dir = join(tmp(), 'log');
+    makeRepo(dir, { commitsDaysAgo: [30, 20, 10, 5, 3, 2, 1] });
+    const c = await recentCommits(dir, 5);
+    expect(c.map((x) => x.message)).toEqual(['c6', 'c5', 'c4', 'c3', 'c2']);
+    expect(Date.parse(c[0].date)).toBeGreaterThan(Date.parse(c[4].date));
+    expect(new Date(c[0].date).toISOString()).toBe(c[0].date);
+  });
+  it('keeps odd characters in a subject intact', async () => {
+    const dir = join(tmp(), 'odd');
+    makeRepo(dir, { commitsDaysAgo: [1] });
+    const { execFileSync } = await import('node:child_process');
+    writeFiles(dir, { 'x.txt': 'x' });
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'Fix "quotes", pipes | and émoji ✓ <tags>'], { cwd: dir });
+    expect((await recentCommits(dir, 1))[0].message).toBe('Fix "quotes", pipes | and émoji ✓ <tags>');
+  });
+  it('is empty for an empty repository and for a folder that is not a repository', async () => {
+    const empty = tmp();
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: empty });
+    expect(await recentCommits(empty)).toEqual([]);
+    expect(await recentCommits(tmp())).toEqual([]);
+  });
+  it('is part of the scan, together with daily counts that agree with the weekly ones', async () => {
+    const dir = join(tmp(), 'full');
+    makeRepo(dir, { commitsDaysAgo: [0, 1, 1, 9, 40] });
+    const r = await scanProject(dir, 'full', NOW);
+    expect(r.recentCommits).toHaveLength(5);
+    expect(r.daily).toHaveLength(84);
+    expect(r.daily.reduce((a, c) => a + c, 0)).toBe(5);
+    expect(r.weekly).toEqual(Array.from({ length: 12 }, (_, w) => r.daily.slice(w * 7, w * 7 + 7).reduce((a, c) => a + c, 0)));
+    expect(r.daily[83]).toBe(1);
+    expect(r.daily[82]).toBe(2);
   });
 });

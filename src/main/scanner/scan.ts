@@ -2,7 +2,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { WEEKS, type ScanResult } from '../../shared/types.js';
 import { computeComplexity, countDependencies, hasTests, infraMarkers } from './complexity.js';
-import { branchName, commitDates, isDirty, isRepoRoot, lastCommitDate, remoteUrl, trackedFiles, weeklyBuckets } from './git.js';
+import { branchName, commitDates, dailyBuckets, isDirty, isRepoRoot, lastCommitDate, recentCommits, remoteUrl, trackedFiles, weeklyBuckets, type CommitInfo } from './git.js';
 import { computePulse } from './pulse.js';
 import { detectTech, LANGUAGE_BY_EXT, languageShares } from './tech.js';
 
@@ -62,8 +62,9 @@ export async function scanProject(dir: string, name: string, now = new Date()): 
   let dates: Date[];
   let last: Date | undefined;
   let dirty = false;
+  let recent: CommitInfo[] = [];
   if (isGit) {
-    [files, dates, last, dirty] = await Promise.all([trackedFiles(dir), commitDates(dir, now), lastCommitDate(dir), isDirty(dir)]);
+    [files, dates, last, dirty, recent] = await Promise.all([trackedFiles(dir), commitDates(dir, now), lastCommitDate(dir), isDirty(dir), recentCommits(dir)]);
   } else {
     const w = await walk(dir);
     files = w.files;
@@ -98,6 +99,8 @@ export async function scanProject(dir: string, name: string, now = new Date()): 
     dirty,
     lastCommit: last?.toISOString(),
     weekly,
+    daily: dailyBuckets(dates, now),
+    recentCommits: recent,
     tech: detectTech({ files, read }),
     languages: languageShares(byLanguage),
     complexity,

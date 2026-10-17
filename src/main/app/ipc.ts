@@ -77,6 +77,7 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
   handle(CHANNELS.park, (name, reason, revisitOn) => svc.park(str(name, 'name', 255), str(reason, 'reason', 1000), date(revisitOn, 'revisitOn')));
   handle(CHANNELS.kill, (name) => svc.kill(str(name, 'name', 255)));
   handle(CHANNELS.unpark, (name) => svc.unpark(str(name, 'name', 255)));
+  handle(CHANNELS.markShipped, (name) => svc.markShipped(str(name, 'name', 255)));
   handle(CHANNELS.getSettings, () => svc.getSettings());
   handle(CHANNELS.saveSettings, (p) => svc.saveSettings(patch(p)));
   handle(CHANNELS.setToken, (t) => svc.setToken(t === null ? null : str(t, 'token', 500)));

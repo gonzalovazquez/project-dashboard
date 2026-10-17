@@ -39,7 +39,7 @@ const load = async (variant, scheme = 'light', size = { width: 1280, height: 150
     window.dashboard = {
       getSnapshot: async () => s, startScan: async () => { window.__calls.push('startScan'); },
       onProjectUpdate: () => () => {}, saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); return { ok: true }; },
-      getSettings: async () => s.settings, setNextAction: ok, setCriterion: ok, promote: ok, park: ok, kill: ok, unpark: ok, setToken: ok, openLink: ok,
+      getSettings: async () => s.settings, setNextAction: ok, setCriterion: ok, promote: ok, park: ok, kill: ok, unpark: ok, markShipped: ok, setToken: ok, openLink: ok,
     };
   }, snap);
   await page.goto(base);

@@ -152,7 +152,7 @@ describe('IPC registration', () => {
   it('rejects malformed arguments before they reach the service', async () => {
     const { call, h } = await wired();
     for (const [channel, ...args] of [
-      [CHANNELS.kill, 42], [CHANNELS.kill, ''], [CHANNELS.kill, 'x'.repeat(300)],
+      [CHANNELS.kill, 42], [CHANNELS.markShipped, 7], [CHANNELS.kill, ''], [CHANNELS.kill, 'x'.repeat(300)],
       [CHANNELS.setCriterion, 'alpha', 'a1', 'yes'],
       [CHANNELS.park, 'beta', 'reason', 'next tuesday'],
       [CHANNELS.promote, 'delta', 'not an object'],

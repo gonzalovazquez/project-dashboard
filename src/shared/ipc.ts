@@ -34,7 +34,7 @@ export interface Snapshot {
 
 export type ErrorCode =
   | 'invalid' | 'not-found' | 'not-eligible' | 'full'
-  | 'no-notion' | 'schema-missing' | 'notion-write-failed'
+  | 'no-notion' | 'schema-missing' | 'notion-write-failed' | 'no-criteria' | 'criteria-open'
   | 'no-secure-storage' | 'scan-failed' | 'busy' | 'internal';
 
 export interface ActionError {
@@ -71,6 +71,8 @@ export interface DashboardApi {
   park(name: string, reason: string, revisitOn?: string): Promise<Result>;
   kill(name: string): Promise<Result>;
   unpark(name: string): Promise<Result>;
+  /** Moves a project whose criteria are all done to General Available and frees its focus slot. */
+  markShipped(name: string): Promise<Result>;
   getSettings(): Promise<PublicSettings>;
   saveSettings(patch: SettingsPatch): Promise<Result>;
   setToken(token: string | null): Promise<Result>;
@@ -87,6 +89,7 @@ export const CHANNELS = {
   park: 'dashboard:park',
   kill: 'dashboard:kill',
   unpark: 'dashboard:unpark',
+  markShipped: 'dashboard:markShipped',
   getSettings: 'dashboard:getSettings',
   saveSettings: 'dashboard:saveSettings',
   setToken: 'dashboard:setToken',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { finishScore, flags, forecast, health, kill, park, progress, promote, queue, velocity } from '../src/shared/rules.js';
+import { finishScore, flags, forecast, health, kill, park, progress, promote, queue, ship, velocity } from '../src/shared/rules.js';
 import type { Criterion } from '../src/shared/types.js';
 import { NOW, daysAgo, project } from './helpers.js';
 
@@ -98,5 +98,35 @@ describe('focus limit of 3', () => {
     park(ps, 'b', 'x');
     kill(ps, 'c');
     expect(JSON.stringify(ps)).toBe(snapshot);
+  });
+});
+
+describe('shipping', () => {
+  const done = (n: number) => Array.from({ length: n }, (_, i) => ({ title: `c${i}`, done: true }));
+  it('moves a finished project to General Available, frees its slot and stamps the date', () => {
+    const ps = [project({ name: 'a' }, { stage: 'Beta', focus: true, criteria: done(3) }), project({ name: 'b' }, { focus: true, criteria: done(1) })];
+    const r = ship(ps, 'a', NOW);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.projects[0].notion).toMatchObject({ stage: 'General Available', focus: false, stageChangedAt: '2026-10-12' });
+    expect(r.projects[1].notion!.focus).toBe(true);
+  });
+  it('refuses while any criterion is open and says how many', () => {
+    const open = [{ title: 'a', done: true }, { title: 'b', done: false }, { title: 'c', done: false }];
+    expect(ship([project({ name: 'a' }, { criteria: open })], 'a', NOW)).toEqual({ ok: false, error: 'criteria-open', open: 2 });
+  });
+  it('refuses a project with no criteria, since it has no definition of done', () => {
+    expect(ship([project({ name: 'a' }, { criteria: [] })], 'a', NOW)).toEqual({ ok: false, error: 'no-criteria' });
+  });
+  it('refuses missing, untracked, parked, killed and already shipped projects', () => {
+    const ps = [project({ name: 'u' }), project({ name: 'p' }, { life: 'parked', criteria: done(1) }), project({ name: 'k' }, { life: 'killed', criteria: done(1) }), project({ name: 's' }, { stage: 'General Available', criteria: done(1) })];
+    expect(ship(ps, 'nope', NOW)).toEqual({ ok: false, error: 'not-found' });
+    for (const n of ['u', 'p', 'k', 's']) expect(ship(ps, n, NOW), n).toEqual({ ok: false, error: 'not-eligible' });
+  });
+  it('does not change its input', () => {
+    const ps = [project({ name: 'a' }, { criteria: done(2), focus: true })];
+    const before = JSON.stringify(ps);
+    ship(ps, 'a', NOW);
+    expect(JSON.stringify(ps)).toBe(before);
   });
 });

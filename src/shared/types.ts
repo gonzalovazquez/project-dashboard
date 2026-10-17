@@ -40,6 +40,10 @@ export interface ScanResult {
   lastCommit?: string;
   /** Commits per trailing 7-day window, oldest first, last entry is the most recent week. */
   weekly: number[];
+  /** Commits per day for the last 84 days, oldest first. Seven consecutive days sum to one entry of `weekly`. */
+  daily: number[];
+  /** The newest commits, newest first. */
+  recentCommits: Array<{ date: string; message: string }>;
   tech: string[];
   languages: LanguageShare[];
   complexity: Complexity;

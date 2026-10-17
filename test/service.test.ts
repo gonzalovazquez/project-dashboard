@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../src/shared/types.js';
+import { loadSnapshot } from '../src/main/notion/stage.js';
 import { board, calls, expectFail, harness, names, scanned } from './harness.js';
+import { page, todo } from './fakeNotion.js';
 import { NOW, project } from './helpers.js';
 
 describe('startup and scanning', () => {
@@ -324,3 +326,78 @@ describe('links, settings and token', () => {
 });
 
 export type { Project };
+
+describe('shipping a project', () => {
+  /** alpha is in focus with every criterion done; beta and gamma are in focus too. */
+  async function finished() {
+    const b = board();
+    b.blocks.pa = [todo('a1', 'Core', true), todo('a2', 'Deploy', true)];
+    return scanned(b);
+  }
+
+  it('writes the stage, the date and the freed slot in one update', async () => {
+    const h = await finished();
+    const r = await h.svc.markShipped('alpha');
+    expect(r.ok).toBe(true);
+    expect(calls(h, 'pages.update')).toEqual([{ op: 'pages.update', args: { page_id: 'pa', properties: {
+      Status: { status: { name: 'General Available' } }, Focus: { checkbox: false }, 'Stage changed': { date: { start: '2026-10-12' } },
+    } } }]);
+    const snap = await h.svc.getSnapshot();
+    expect(snap.projects.find((p) => p.name === 'alpha')!.notion).toMatchObject({ stage: 'General Available', focus: false, stageChangedAt: '2026-10-12' });
+    expect(snap.projects.filter((p) => p.notion?.focus)).toHaveLength(2);
+    expect(h.updates.some((u) => u.kind === 'project' && u.project.name === 'alpha')).toBe(true);
+  });
+
+  it('lets another project take the freed slot', async () => {
+    const h = await finished();
+    await h.svc.markShipped('alpha');
+    expect((await h.svc.promote('delta')).ok).toBe(true);
+  });
+
+  it('tells the stage snapshot about it so the next scan does not stamp the page again', async () => {
+    const h = await finished();
+    await h.svc.markShipped('alpha');
+    expect((await loadSnapshot(h.stagePath)).pa.stage).toBe('General Available');
+  });
+
+  it('refuses with a clear message while a criterion is open, and writes nothing', async () => {
+    const h = await scanned();
+    const r = await h.svc.markShipped('alpha');
+    expectFail(r, 'criteria-open');
+    expect((r as { error: { message: string } }).error.message).toBe('1 criterion is still open on alpha.');
+    expect(calls(h)).toEqual([]);
+  });
+
+  it('refuses a project with no criteria', async () => {
+    const h = await scanned();
+    expectFail(await h.svc.markShipped('beta'), 'no-criteria');
+    expect(calls(h)).toEqual([]);
+  });
+
+  it('refuses unknown, untracked and already shipped projects', async () => {
+    const h = await finished();
+    expectFail(await h.svc.markShipped('nope'), 'not-found');
+    expectFail(await h.svc.markShipped('loose'), 'not-eligible');
+    await h.svc.markShipped('alpha');
+    expectFail(await h.svc.markShipped('alpha'), 'not-eligible');
+  });
+
+  it('leaves everything as it was when Notion rejects the write', async () => {
+    const h = await finished();
+    h.fake.failNext('pages.update', 'conflict');
+    const r = await h.svc.markShipped('alpha');
+    expectFail(r, 'notion-write-failed');
+    expect((await h.svc.getSnapshot()).projects.find((p) => p.name === 'alpha')!.notion).toMatchObject({ stage: 'Beta', focus: true });
+    expect((await loadSnapshot(h.stagePath)).pa.stage).toBe('Beta'); // still the baseline from the first scan
+  });
+
+  it('is blocked while the Notion schema is incomplete, like every other property write', async () => {
+    const b = board();
+    b.blocks.pa = [todo('a1', 'Core', true)];
+    const h = await harness({ ...b, schema: 'live' });
+    await h.svc.startScan();
+    expectFail(await h.svc.markShipped('alpha'), 'schema-missing');
+  });
+});
+
+export { page };

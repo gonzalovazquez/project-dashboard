@@ -13,6 +13,24 @@ interface Tracked {
   dirty?: boolean; stageDays: number; next?: string; criteria: Criterion[]; github?: boolean; tech: string[]; lastActivityDays?: number;
 }
 
+const MESSAGES = ['Fix flaky retry in sync job', 'Add loading state to list view', 'Refactor config loading', 'Tighten input validation', 'Bump dependencies', 'Write README setup steps', 'Handle empty response from API', 'Add basic integration test', 'Rename env vars, update docs', 'Wire the review step into the planner'];
+const seed = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+
+/** Spreads each week's commits over its seven days, the same way every time. Sums back to the weekly totals. */
+function spreadDaily(weekly: number[], name: string): number[] {
+  const h = seed(name);
+  const daily = new Array<number>(84).fill(0);
+  weekly.forEach((count, w) => { for (let j = 0; j < count; j++) daily[w * 7 + ((h + w * 5 + j * 3 + (j % 2)) % 7)]++; });
+  return daily;
+}
+
+function recent(daily: number[], name: string): Array<{ date: string; message: string }> {
+  const out: Array<{ date: string; message: string }> = [];
+  const h = seed(name);
+  for (let i = 83; i >= 0 && out.length < 5; i--) for (let k = 0; k < daily[i] && out.length < 5; k++) out.push({ date: new Date(NOW.getTime() - (83 - i) * DAY - k * 3_600_000).toISOString(), message: MESSAGES[(h + out.length * 3) % MESSAGES.length] });
+  return out;
+}
+
 function lastDays(weekly: number[]): number | null {
   const i = weekly.map((v) => v > 0).lastIndexOf(true);
   return i < 0 ? null : (11 - i) * 7 + 1;
@@ -21,7 +39,7 @@ function lastDays(weekly: number[]): number | null {
 function tracked(t: Tracked): Project {
   const last = t.lastActivityDays ?? lastDays(t.weekly);
   return project({
-    name: t.name, dirty: t.dirty ?? false, weekly: t.weekly, tech: t.tech,
+    name: t.name, dirty: t.dirty ?? false, weekly: t.weekly, daily: spreadDaily(t.weekly, t.name), recentCommits: recent(spreadDaily(t.weekly, t.name), t.name), tech: t.tech,
     github: t.github === false ? undefined : `https://github.com/gonzalovazquez/${t.name}`,
     complexity: { score: t.complexity, level: t.complexity < 25 ? 'Low' : t.complexity < 60 ? 'Medium' : 'High', parts: [] },
     pulse: computePulse(t.weekly, t.dirty ?? false, last === null ? undefined : new Date(NOW.getTime() - last * DAY), NOW),
@@ -33,7 +51,7 @@ function tracked(t: Tracked): Project {
 function untracked(name: string, tech: string[], complexity: number, weekly: number[], github = true): Project {
   const last = lastDays(weekly);
   return project({
-    name, tech, weekly, github: github ? `https://github.com/gonzalovazquez/${name}` : undefined,
+    name, tech, weekly, daily: spreadDaily(weekly, name), recentCommits: recent(spreadDaily(weekly, name), name), github: github ? `https://github.com/gonzalovazquez/${name}` : undefined,
     complexity: { score: complexity, level: complexity < 25 ? 'Low' : complexity < 60 ? 'Medium' : 'High', parts: [] },
     pulse: computePulse(weekly, false, last === null ? undefined : new Date(NOW.getTime() - last * DAY), NOW),
   });

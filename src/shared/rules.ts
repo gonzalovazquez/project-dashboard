@@ -94,3 +94,22 @@ export const kill = (ps: Project[], name: string) => patch(ps, name, { life: 'ki
 
 /** Brings a parked project back. It does not take a focus slot; promote it separately. */
 export const unpark = (ps: Project[], name: string) => patch(ps, name, { life: 'active', parkReason: undefined, revisitOn: undefined });
+
+export type ShipResult =
+  | { ok: true; projects: Project[] }
+  | { ok: false; error: 'not-found' | 'not-eligible' | 'no-criteria' | 'criteria-open'; open?: number };
+
+/**
+ * Moves a finished project to General Available and frees its focus slot. Only a live project with
+ * ship criteria, every one of them done, can ship: a project with no criteria has no definition of done.
+ */
+export function ship(ps: Project[], name: string, now: Date): ShipResult {
+  const p = ps.find((x) => x.name === name);
+  if (!p) return { ok: false, error: 'not-found' };
+  if (!isLive(p)) return { ok: false, error: 'not-eligible' };
+  const criteria = p.notion!.criteria;
+  if (criteria.length === 0) return { ok: false, error: 'no-criteria' };
+  const open = criteria.filter((c) => !c.done).length;
+  if (open > 0) return { ok: false, error: 'criteria-open', open };
+  return { ok: true, projects: patch(ps, name, { stage: 'General Available', focus: false, stageChangedAt: now.toISOString().slice(0, 10) }) };
+}

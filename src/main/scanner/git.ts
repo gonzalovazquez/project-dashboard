@@ -48,14 +48,20 @@ export async function isDirty(dir: string): Promise<boolean> {
   return !!out && out.trim().length > 0;
 }
 
+/**
+ * Branches and remotes only. `--all` would also walk refs/stash and count the two hidden commits
+ * every stash creates, and tags, which are not work.
+ */
+const HISTORY = ['--branches', '--remotes'];
+
 export async function commitDates(dir: string, now: Date, days = WEEKS * 7): Promise<Date[]> {
   const since = new Date(now.getTime() - days * DAY).toISOString();
-  const out = await git(dir, ['log', '--all', `--since=${since}`, '--format=%cI']);
+  const out = await git(dir, ['log', ...HISTORY, `--since=${since}`, '--format=%cI']);
   return (out ?? '').split('\n').filter(Boolean).map((s) => new Date(s));
 }
 
 export async function lastCommitDate(dir: string): Promise<Date | undefined> {
-  const out = (await git(dir, ['log', '--all', '-1', '--format=%cI']))?.trim();
+  const out = (await git(dir, ['log', ...HISTORY, '-1', '--format=%cI']))?.trim();
   return out ? new Date(out) : undefined;
 }
 
@@ -74,4 +80,27 @@ export function weeklyBuckets(dates: Date[], now: Date, weeks = WEEKS): number[]
     if (idx >= 0) out[idx]++;
   }
   return out;
+}
+
+/** Commits per day for the trailing `days` days. Index days-1 is the 24 hours ending at `now`. */
+export function dailyBuckets(dates: Date[], now: Date, days = WEEKS * 7): number[] {
+  const out = new Array<number>(days).fill(0);
+  for (const d of dates) {
+    const age = now.getTime() - d.getTime();
+    if (age < 0) continue;
+    const idx = days - 1 - Math.floor(age / DAY);
+    if (idx >= 0) out[idx]++;
+  }
+  return out;
+}
+
+export interface CommitInfo { date: string; message: string }
+
+/** The newest commit subjects, for the deep dive. */
+export async function recentCommits(dir: string, n = 5): Promise<CommitInfo[]> {
+  const out = await git(dir, ['log', ...HISTORY, `-n${n}`, '--format=%cI%x1f%s']);
+  return (out ?? '').split('\n').filter(Boolean).map((line) => {
+    const [date, ...rest] = line.split('\x1f');
+    return { date: new Date(date).toISOString(), message: rest.join('\x1f').trim() };
+  });
 }

@@ -19,6 +19,7 @@ const api: DashboardApi = {
   park: (name, reason, revisitOn) => ipcRenderer.invoke(CHANNELS.park, name, reason, revisitOn),
   kill: (name) => ipcRenderer.invoke(CHANNELS.kill, name),
   unpark: (name) => ipcRenderer.invoke(CHANNELS.unpark, name),
+  markShipped: (name) => ipcRenderer.invoke(CHANNELS.markShipped, name),
   getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),
   saveSettings: (patch) => ipcRenderer.invoke(CHANNELS.saveSettings, patch),
   setToken: (token) => ipcRenderer.invoke(CHANNELS.setToken, token),
