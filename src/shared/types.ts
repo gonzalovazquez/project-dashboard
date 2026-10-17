@@ -48,6 +48,8 @@ export interface ScanResult {
   languages: LanguageShare[];
   complexity: Complexity;
   pulse: Pulse;
+  /** Other folders folded into this one because they are the same product. */
+  members?: string[];
 }
 
 export interface Criterion {

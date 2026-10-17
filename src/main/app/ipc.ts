@@ -59,6 +59,15 @@ function patch(v: unknown): SettingsPatch {
   const o = v as Record<string, unknown>;
   const out: SettingsPatch = {};
   if (o.developmentFolder !== undefined) out.developmentFolder = str(o.developmentFolder, 'developmentFolder', 1000);
+  if (o.groups !== undefined) {
+    if (typeof o.groups !== 'object' || o.groups === null || Array.isArray(o.groups)) throw new BadInput('Groups must be a map.');
+    const m: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(o.groups)) {
+      if (!Array.isArray(v)) throw new BadInput('Each group must be a list of folders.');
+      m[str(k, 'folder name', 255)] = v.map((n) => str(n, 'folder name', 255));
+    }
+    out.groups = m;
+  }
   if (o.overrides !== undefined) {
     if (typeof o.overrides !== 'object' || o.overrides === null || Array.isArray(o.overrides)) throw new BadInput('Overrides must be a map.');
     const m: Record<string, string> = {};
@@ -110,6 +119,8 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
   handle(CHANNELS.unpark, (name) => svc.unpark(str(name, 'name', 255)));
   handle(CHANNELS.markShipped, (name) => svc.markShipped(str(name, 'name', 255)));
   handle(CHANNELS.addToNotion, (name) => svc.addToNotion(str(name, 'name', 255)));
+  handle(CHANNELS.groupFolder, (name, into) => svc.groupFolder(str(name, 'name', 255), str(into, 'into', 255)));
+  handle(CHANNELS.ungroupFolder, (name) => svc.ungroupFolder(str(name, 'name', 255)));
   handle(CHANNELS.ignoreFolder, (name, ignored) => svc.ignoreFolder(str(name, 'name', 255), bool(ignored, 'ignored')));
   handle(CHANNELS.linkFolder, (name, id) => svc.linkFolder(str(name, 'name', 255), str(id, 'pageId', 100)));
   handle(CHANNELS.applyReview, (p) => svc.applyReview(plan(p)));

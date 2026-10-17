@@ -12,6 +12,7 @@ import { hasChanges } from '../notion/schema.js';
 import { detectStageChanges, loadSnapshot, saveSnapshot } from '../notion/stage.js';
 import type { Cache } from './cache.js';
 import { localDate, stageCounts, type HistoryStore } from './history.js';
+import { mergeGroups, memberNames } from './group.js';
 import { matchNotion, mergeProjects, toProject } from './merge.js';
 import { SecureStorageUnavailable, type TokenStore } from './secrets.js';
 import { validatePatch, type SettingsStore } from './settings.js';
@@ -89,7 +90,7 @@ export class DashboardService {
   async getSettings(): Promise<PublicSettings> {
     const s = await this.d.settings.load();
     const { source } = await this.d.tokens.get();
-    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable, appearance: s.appearance, ignored: s.ignored, reviewDay: s.reviewDay, reviewTime: s.reviewTime, reviewReminder: s.reviewReminder, onboarded: s.onboarded, lastReviewAt: s.lastReviewAt };
+    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable, appearance: s.appearance, ignored: s.ignored, groups: s.groups, reviewDay: s.reviewDay, reviewTime: s.reviewTime, reviewReminder: s.reviewReminder, onboarded: s.onboarded, lastReviewAt: s.lastReviewAt };
   }
 
   async getSnapshot(): Promise<Snapshot> {
@@ -140,11 +141,14 @@ export class DashboardService {
       // Cached Notion data fills in cards while the fresh pull is in flight.
       const known = new Map(this.projects.flatMap((p) => (p.notion ? [[p.name, p.notion] as const] : [])));
       const pulling = token ? this.pullNotion(token) : Promise.resolve(undefined);
-      const scans = await this.d.scanFolders(settings.developmentFolder, (s) => {
+      const hidden = memberNames(settings.groups);
+      const raw = await this.d.scanFolders(settings.developmentFolder, (s) => {
+        if (hidden.has(s.name)) return;
         const project = toProject(s, token ? known.get(s.name) : undefined);
         this.upsert(project);
         this.emit({ kind: 'project', project });
       }, now);
+      const scans = mergeGroups(raw, settings.groups, now);
       const pulled = await pulling;
 
       let infoByFolder = new Map<string, NotionInfo>(token ? known : []);
@@ -346,9 +350,11 @@ export class DashboardService {
    */
   async refreshProject(name: string): Promise<boolean> {
     if (this.scanning || !this.d.scanProject) return false;
-    const known = this.projects.find((x) => x.name === name);
-    if (!known) return false;
     const settings = await this.d.settings.load();
+    const known = this.projects.find((x) => x.name === name);
+    // A folder that is part of a group, or holds one, changes the combined numbers, so the whole group is read again.
+    if ((known?.members?.length ?? 0) > 0 || (!known && memberNames(settings.groups).has(name))) { void this.startScan(); return true; }
+    if (!known) return false;
     let fresh: ScanResult;
     try { fresh = await this.d.scanProject(join(settings.developmentFolder, name), name, this.now()); }
     catch { return false; }
@@ -417,6 +423,35 @@ export class DashboardService {
     catch (err) { await this.replace({ ...p, notion: info }); return fail('internal', `The page was created, but the link could not be saved: ${msg(err)}. It will match by name on the next scan.`); }
     await this.replace({ ...p, notion: info });
     await this.emitMeta();
+    return ok();
+  }
+
+  async groupFolder(name: string, into: string): Promise<Result> {
+    const busy = this.busy();
+    if (busy) return busy;
+    const p = this.projects.find((x) => x.name === name);
+    const target = this.projects.find((x) => x.name === into);
+    if (!p) return fail('not-found', `No project named ${name}.`);
+    if (!target) return fail('not-found', `No project named ${into}.`);
+    if (name === into) return fail('invalid', 'A folder cannot be grouped into itself.');
+    if (p.notion) return fail('not-eligible', `${name} already has its own Notion page. Group only folders that are not in Notion.`);
+    if (p.members?.length) return fail('not-eligible', `${name} already has folders grouped into it. Ungroup those first.`);
+    const groups = (await this.d.settings.load()).groups;
+    await this.d.settings.save({ groups: { ...groups, [into]: [...new Set([...(groups[into] ?? []), name])] } });
+    await this.emitMeta();
+    await this.startScan();
+    return ok();
+  }
+
+  async ungroupFolder(name: string): Promise<Result> {
+    const busy = this.busy();
+    if (busy) return busy;
+    const groups = (await this.d.settings.load()).groups;
+    if (!Object.values(groups).some((m) => m.includes(name))) return fail('not-found', `${name} is not grouped into another project.`);
+    const next = Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.filter((n) => n !== name)]).filter(([, v]) => (v as string[]).length > 0));
+    await this.d.settings.save({ groups: next });
+    await this.emitMeta();
+    await this.startScan();
     return ok();
   }
 

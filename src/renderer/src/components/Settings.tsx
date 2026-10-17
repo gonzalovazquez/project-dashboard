@@ -18,6 +18,7 @@ export function Settings({ snap, first, onFinish }: Props) {
   const folder = useAction();
   const token = useAction();
   const look = useAction();
+  const group = useAction();
   const [secret, setSecret] = useState('');
   const api = window.dashboard;
   const env = s.tokenSource === 'env';
@@ -52,6 +53,22 @@ export function Settings({ snap, first, onFinish }: Props) {
         <div className="setrow"><code className="mono" data-testid="folder-path">{s.developmentFolder}</code><button className="btn" onClick={() => void choose()} disabled={snap.scanning} data-action="choose-folder">Choose…</button></div>
         {snap.scanError && <p className="banner bad" role="alert" data-banner="scan">{snap.scanError}</p>}
       </section>
+
+      {Object.keys(s.groups).length > 0 && (
+        <section className="card" aria-labelledby="set-groups" data-section="groups">
+          <h3 id="set-groups">Grouped folders</h3>
+          <p className="mut small">These folders are tracked together with another project as one.</p>
+          <NoticeBar notice={group.notice} />
+          <ul className="plan">
+            {Object.entries(s.groups).flatMap(([primary, members]) => members.map((m) => (
+              <li key={`${primary}/${m}`} data-group-member={m}>
+                <span className="mono">{m}</span> is part of <b>{primary}</b>{' '}
+                <button className="link" disabled={snap.scanning || group.busy} onClick={() => void group.run(() => api.ungroupFolder(m), `${m} is its own project again.`)} data-action="ungroup">Split out</button>
+              </li>
+            )))}
+          </ul>
+        </section>
+      )}
 
       <section className="card" aria-labelledby="set-notion" data-section="notion">
         <h3 id="set-notion">{first ? '2. ' : ''}Notion</h3>

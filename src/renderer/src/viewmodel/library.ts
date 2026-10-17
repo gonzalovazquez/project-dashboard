@@ -136,3 +136,16 @@ export function inDays(now: Date, days: number): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Another folder this one probably belongs to: its name starts with that folder's name (TabSaverAPI and TabSaver).
+ * The longest match wins, and short names are ignored so "app" does not swallow everything.
+ */
+export function groupSuggestion(name: string, ps: Project[]): Project | undefined {
+  const n = norm(name);
+  return ps
+    .filter((p) => p.name !== name && norm(p.name).length >= 5 && n.startsWith(norm(p.name)) && n.length > norm(p.name).length)
+    .sort((a, b) => norm(b.name).length - norm(a.name).length)[0];
+}

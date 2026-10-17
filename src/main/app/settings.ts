@@ -4,9 +4,9 @@ import { APPEARANCES, type Appearance, type SettingsPatch } from '../../shared/i
 import { REVIEW_TIME } from '../../shared/review.js';
 import { readJson, writeJsonAtomic } from './jsonFile.js';
 
-export interface StoredSettings { developmentFolder: string; overrides: Record<string, string>; ignored: string[]; appearance: Appearance; reviewDay: number; reviewTime: string; reviewReminder: boolean; onboarded: boolean; lastReviewAt?: string }
+export interface StoredSettings { developmentFolder: string; overrides: Record<string, string>; ignored: string[]; groups: Record<string, string[]>; appearance: Appearance; reviewDay: number; reviewTime: string; reviewReminder: boolean; onboarded: boolean; lastReviewAt?: string }
 
-export const defaultSettings = (): StoredSettings => ({ developmentFolder: join(homedir(), 'Development'), overrides: {}, ignored: [], appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: false });
+export const defaultSettings = (): StoredSettings => ({ developmentFolder: join(homedir(), 'Development'), overrides: {}, ignored: [], groups: {}, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: false });
 
 export interface SettingsStore {
   load(): Promise<StoredSettings>;
@@ -23,6 +23,11 @@ export function validatePatch(patch: SettingsPatch): string | undefined {
   if (patch.ignored !== undefined && (!Array.isArray(patch.ignored) || patch.ignored.some((n) => typeof n !== 'string' || !n))) return 'Ignored folders must be a list of folder names.';
   if (patch.reviewDay !== undefined && !(Number.isInteger(patch.reviewDay) && patch.reviewDay >= 0 && patch.reviewDay <= 6)) return 'The review day must be 0 (Sunday) to 6 (Saturday).';
   if (patch.reviewTime !== undefined && !(typeof patch.reviewTime === 'string' && REVIEW_TIME.test(patch.reviewTime))) return 'The review time must look like 16:00.';
+  if (patch.groups !== undefined) {
+    const g = patch.groups;
+    if (typeof g !== 'object' || g === null || Array.isArray(g)) return 'Groups must map a folder to a list of folders.';
+    for (const [k, v] of Object.entries(g)) if (!k || !Array.isArray(v) || v.some((n) => typeof n !== 'string' || !n)) return 'Each group needs a folder name and a list of folder names.';
+  }
   if (patch.onboarded !== undefined && typeof patch.onboarded !== 'boolean') return 'The onboarded setting must be true or false.';
   if (patch.reviewReminder !== undefined && typeof patch.reviewReminder !== 'boolean') return 'The reminder setting must be on or off.';
   if (patch.appearance !== undefined && !APPEARANCES.includes(patch.appearance)) return 'Appearance must be system, light or dark.';
@@ -36,6 +41,7 @@ export function createSettingsStore(path: string): SettingsStore {
     return {
       developmentFolder: stored?.developmentFolder ?? d.developmentFolder,
       overrides: stored?.overrides ?? {},
+      groups: stored?.groups && typeof stored.groups === 'object' && !Array.isArray(stored.groups) ? Object.fromEntries(Object.entries(stored.groups).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, (v as unknown[]).filter((n): n is string => typeof n === 'string')])) : {},
       ignored: Array.isArray(stored?.ignored) ? stored!.ignored.filter((n) => typeof n === 'string') : [],
       appearance: stored?.appearance && APPEARANCES.includes(stored.appearance) ? stored.appearance : d.appearance,
       reviewDay: Number.isInteger(stored?.reviewDay) && stored!.reviewDay! >= 0 && stored!.reviewDay! <= 6 ? stored!.reviewDay! : d.reviewDay,

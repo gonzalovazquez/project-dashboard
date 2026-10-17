@@ -16,6 +16,8 @@ The dashboard reads one Notion database (your Brainstorming board). Property nam
 
 ## Setting it up
 
+The step-by-step guide, with troubleshooting, is [notion-setup.md](notion-setup.md). The short version:
+
 Create a Notion integration, share the Brainstorming database with it, and export its token.
 
 ```
@@ -57,3 +59,10 @@ Each folder is paired with at most one page. In order:
 4. A shared prefix of 6+ characters (`whisper-safe` and "WhisperVault")
 
 Anything else needs an override, for example `chicken-friends` to Flockchat. Folders with no match appear in the Inbox.
+
+## Several folders, one product
+
+A product kept in several folders (`TabSaver`, `TabSaverAPI`, `TabSaverInfra`, `TabSaverMockAPI`) is one Notion page. In the
+Inbox, use **Group into…** (or the suggested button) on each extra folder. The app then treats them as one project:
+commits and uncommitted work add up, technology is combined, complexity is the highest of the folders, and the project
+shows an Includes line. **Settings** lists grouped folders and can split one back out.

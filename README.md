@@ -6,7 +6,7 @@ on. It exists to push projects across the line: a limit of three, a ship checkli
 flags, and a weekly review that forces a decision.
 
 The interface was designed in [`docs/ui-mockup.html`](docs/ui-mockup.html). The Notion setup is in
-[`docs/notion-schema.md`](docs/notion-schema.md), the chart colors in [`docs/chart-colors.md`](docs/chart-colors.md).
+[`docs/notion-schema.md`](docs/notion-schema.md) (the properties) and [`docs/notion-setup.md`](docs/notion-setup.md) (the step-by-step guide), the chart colors in [`docs/chart-colors.md`](docs/chart-colors.md).
 
 ## Install
 
@@ -30,27 +30,60 @@ xattr -dr com.apple.quarantine "/Applications/Project Dashboard.app"
 `npm run package:dir` builds an unpacked app for the machine you are on, which is how the packaging was tested on Linux
 (the `.dmg` target needs macOS to build). To run from source instead: `npm run dev`.
 
-## First run
+## Startup guide
 
-The app opens on a short setup. It asks for two things and both can be changed later in **Settings**:
+Follow this once, in order. Each step says how to tell it worked. The full Notion walkthrough, with troubleshooting, is
+in [`docs/notion-setup.md`](docs/notion-setup.md).
 
-1. **Development folder.** Every folder directly inside it becomes a project. The folder is only ever read.
-2. **Notion.** Create an internal integration in Notion (Settings, Connections, Develop or manage integrations), paste its
-   secret, and add the integration to your Brainstorming database from the database's Connections menu. The token is stored
-   encrypted in the system keychain. If you would rather not store it, set `NOTION_TOKEN` in the environment.
+**1. Install and open the app.** See Install above, or run `npm run dev` from source.
+*Worked when:* a window opens on a **Welcome** screen.
 
-Without Notion the app still scans and shows activity, complexity and technology for every folder.
+**2. Choose your Development folder.** Choose **Choose…** under Development folder. Every folder directly inside it becomes
+a project, and the folder is only ever read.
+*Worked when:* the path shown is yours and the sidebar counts your folders under **All projects**.
 
-The Notion database needs six extra properties (Focus, Lifecycle, Next action, Stage changed, Park reason, Revisit on).
-Nothing is added until you approve it:
+**3. Create a Notion integration and share your database with it.**
+1. In Notion, open Settings, then Connections, then Develop or manage integrations, and create an **internal** integration
+   named `Project Dashboard` with Read, Update and Insert content turned on.
+2. Copy the integration secret.
+3. Open your Brainstorming database, choose **•••**, **Connections**, and add the integration. Skipping this is the usual cause of "0 pages".
+
+**4. Connect the app.** Paste the secret into the Notion field and choose **Connect**. It is stored encrypted in the system
+keychain. If you prefer, set `NOTION_TOKEN` in the environment instead and the app never stores it.
+*Worked when:* Settings says **Connected, N pages in the database**.
+
+**5. Check what matched (read only).**
 
 ```
-npm run notion:pull -- ~/Development     # read only: which folders matched which pages
-npm run notion:setup                     # dry run: lists the properties that would be added
-npm run notion:setup -- --apply          # adds them
+export NOTION_TOKEN=<your secret>
+npm run notion:pull -- ~/Development
 ```
 
-Until they exist the app shows a banner, keeps reading, and blocks only the writes that need them (ticking criteria still works).
+*Worked when:* your tracked projects appear under "Matched". Folders that are the same product (for example `TabSaver`,
+`TabSaverAPI`, `TabSaverInfra` and `TabSaverMockAPI`) should be grouped: add the main folder to Notion from the
+**Inbox**, then use **Group into…** on the others. They are then tracked as one project with one page.
+
+**6. Add the six properties the app needs (you approve it).**
+
+```
+npm run notion:setup               # dry run, changes nothing
+npm run notion:setup -- --apply    # adds Focus, Lifecycle, Next action, Stage changed, Park reason, Revisit on
+```
+
+*Worked when:* the dry run says nothing is missing and the app's Notion banner is gone.
+
+**7. Add ship criteria.** On each project's Notion page, add to-do items for what must be true to ship, with an optional
+estimate such as `(3h)`.
+*Worked when:* the project shows a progress percentage and a forecast date.
+
+**8. Pick up to three projects to focus on.** Open a project from **All projects** and choose **Make focus** in its quick look. (Only projects with a Notion page can take a focus slot.)
+*Worked when:* the sidebar's Focus section lists them and each has a deep dive.
+
+**9. Set the review reminder.** Settings, Weekly review reminder: choose a day and time. Then do your first **Weekly review**.
+*Worked when:* the review ends with "Review complete" and a dated note appears on each reviewed Notion page.
+
+Anything wrong at any step: the banner at the top of the app says what and has a button to fix or retry it, and the
+troubleshooting table in [`docs/notion-setup.md`](docs/notion-setup.md) covers the rest.
 
 ## Using it
 
@@ -60,7 +93,7 @@ Until they exist the app shows a banner, keeps reading, and blocks only the writ
 | **Deep dive** | One focus project in detail: next action, burnup chart with a forecast band, the ship checklist (ticking writes to Notion), commit heatmap, health breakdown, languages, details and recent commits, and **Mark shipped** once every criterion is done |
 | **Weekly review** | Four steps: look back at the week, decide on every stalled project (keep going, park or kill), pick the next three, set a next action for each. Applying is all or nothing and leaves a dated note on each reviewed Notion page. A notification reminds you on the day and time you choose |
 | **All projects** | Every folder, filtered by state, activity, complexity or technology, with search. Click a row for a quick look |
-| **Inbox** | Folders with no Notion page: add one, link to a page that already exists, or ignore the folder |
+| **Inbox** | Folders with no Notion page: add one, link to a page that already exists, group it into another project (the same product in several folders), or ignore it |
 | **Parked / Shipped** | Parked projects with the reason and revisit date (due ones are marked), and projects that reached General Available |
 | **Settings** | Folder, Notion connection, appearance and the review reminder |
 
@@ -108,7 +141,7 @@ and the cache. The interface reaches it only through the bridge in `src/preload/
 | `setNextAction`, `setCriterion` | Write a next action or a checklist item to Notion |
 | `promote`, `park`, `kill`, `unpark`, `markShipped` | Change focus, lifecycle and stage. The pure rules run first; a rejected rule writes nothing |
 | `applyReview` | A whole weekly review in one step, or none of it, then the dated notes |
-| `addToNotion`, `linkFolder`, `ignoreFolder` | Inbox actions |
+| `addToNotion`, `linkFolder`, `groupFolder`, `ungroupFolder`, `ignoreFolder` | Inbox actions |
 | `getSettings`, `saveSettings`, `setToken`, `chooseFolder` | Folder, overrides, appearance, review reminder, the Notion token and the folder picker |
 | `openLink` | Open a project's GitHub page, Notion page or folder. The interface names the project; the main process looks up the URL |
 

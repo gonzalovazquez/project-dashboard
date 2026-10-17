@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Snapshot } from '../../../shared/ipc.js';
-import { inboxModel, parkedRows, shippedRows } from '../viewmodel/library.js';
+import { groupSuggestion, inboxModel, parkedRows, shippedRows } from '../viewmodel/library.js';
 import { fmtDate, plural } from '../viewmodel/format.js';
 import { writeAccess } from '../viewmodel/deepdive.js';
 import { NoticeBar, useAction } from './actions.js';
@@ -21,9 +21,10 @@ export function Inbox({ snap, onQuickLook }: { snap: Snapshot; onQuickLook: (nam
 
   const row = (name: string, isIgnored: boolean) => {
     const p = snap.projects.find((x) => x.name === name)!;
+    const suggested = isIgnored ? undefined : groupSuggestion(name, snap.projects);
     return (
       <tr key={name} data-inbox={name}>
-        <td><button className="link" onClick={() => onQuickLook(name)}><div className="pn"><b>{name}</b><span className="mono">{p.tech.join(', ') || 'No technology detected'}</span></div></button></td>
+        <td><button className="link" onClick={() => onQuickLook(name)}><div className="pn"><b>{name}</b><span className="mono">{p.tech.join(', ') || 'No technology detected'}</span>{suggested && <span className="small mut">Looks like part of {suggested.notion?.title ?? suggested.name}</span>}</div></button></td>
         <td><Pill color={PULSE_COLOR[p.pulse.level]}>{p.pulse.level}</Pill></td>
         <td className="num r">{ago(p.pulse.lastActivityDays)}</td>
         <td className="r">
@@ -38,6 +39,12 @@ export function Inbox({ snap, onQuickLook }: { snap: Snapshot; onQuickLook: (nam
                     {snap.unlinkedPages.map((u) => <option key={u.id} value={u.id}>{u.title}</option>)}
                   </select>
                 )}
+                {suggested && <button className="btn" disabled={off} title={why} onClick={() => void act.run(() => api.groupFolder(name, suggested.name), `${name} is now part of ${suggested.notion?.title ?? suggested.name}.`)} data-action="group-suggested">Group into {suggested.notion?.title ?? suggested.name}</button>}
+                <select className="field" aria-label={`Group ${name} into another project`} value="" disabled={off} data-action="group"
+                  onChange={(e) => { const into = e.target.value; if (into) void act.run(() => api.groupFolder(name, into), `${name} is now part of ${snap.projects.find((x) => x.name === into)?.notion?.title ?? into}.`); }}>
+                  <option value="">Group into…</option>
+                  {snap.projects.filter((x) => x.name !== name).map((x) => <option key={x.name} value={x.name}>{x.notion?.title ?? x.name}</option>)}
+                </select>
                 <button className="btn" onClick={() => void act.run(() => api.ignoreFolder(name, true), `${name} will not show here.`)} data-action="ignore">Ignore</button>
               </span>}
         </td>

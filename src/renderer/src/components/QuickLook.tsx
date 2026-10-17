@@ -31,6 +31,7 @@ export function QuickLook({ snap, project: p, now, onClose, onOpenDeepDive }: Pr
     ['Complexity', `${p.complexity.score}, ${p.complexity.level}`],
     ...(n ? [['Health', String(health(p, now))] as [string, string]] : []),
     ['Technology', p.tech.length ? p.tech.join(', ') : 'None detected'],
+    ...(p.members?.length ? [['Includes', p.members.join(', ')] as [string, string]] : []),
     ['Folder', p.path],
   ];
   const api = window.dashboard;

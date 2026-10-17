@@ -19,6 +19,8 @@ export interface PublicSettings {
   overrides: Record<string, string>;
   /** Folders hidden from the Inbox. */
   ignored: string[];
+  /** Folders folded into another project: primary folder name to member folder names. */
+  groups: Record<string, string[]>;
   tokenSource: 'env' | 'keychain' | 'none';
   secureStorageAvailable: boolean;
   appearance: Appearance;
@@ -75,7 +77,7 @@ export type ProjectUpdate =
 export type LinkKind = 'github' | 'notion' | 'folder';
 
 export interface SwapChoice { parkName: string; reason: string; revisitOn?: string }
-export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string>; ignored?: string[]; appearance?: Appearance; reviewDay?: number; reviewTime?: string; reviewReminder?: boolean; onboarded?: boolean }
+export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string>; ignored?: string[]; groups?: Record<string, string[]>; appearance?: Appearance; reviewDay?: number; reviewTime?: string; reviewReminder?: boolean; onboarded?: boolean }
 
 /**
  * Everything the interface may call. Mutating calls run the pure rules in
@@ -95,6 +97,10 @@ export interface DashboardApi {
   markShipped(name: string): Promise<Result>;
   /** Creates a Notion page titled with the folder name, in Not started, and pairs the folder with it. */
   addToNotion(name: string): Promise<Result>;
+  /** Folds an untracked folder into a project, so they are tracked as one. Rescans. */
+  groupFolder(name: string, into: string): Promise<Result>;
+  /** Splits a folder back out of the project it was folded into. Rescans. */
+  ungroupFolder(name: string): Promise<Result>;
   /** Hides a folder from the Inbox, or brings it back. */
   ignoreFolder(name: string, ignored: boolean): Promise<Result>;
   /** Pairs a folder with an existing Notion page that no folder matched. */
@@ -121,6 +127,8 @@ export const CHANNELS = {
   unpark: 'dashboard:unpark',
   markShipped: 'dashboard:markShipped',
   addToNotion: 'dashboard:addToNotion',
+  groupFolder: 'dashboard:groupFolder',
+  ungroupFolder: 'dashboard:ungroupFolder',
   ignoreFolder: 'dashboard:ignoreFolder',
   linkFolder: 'dashboard:linkFolder',
   applyReview: 'dashboard:applyReview',

@@ -23,7 +23,7 @@ const snapshot: Snapshot = {
   notion: variant === 'untracked' || variant === 'firstrun' ? { state: 'not-configured', message: undefined } : variant === 'broken' ? { state: 'error', message: 'Could not reach Notion: getaddrinfo ENOTFOUND api.notion.com. Showing the last known data.', syncedAt: NOW.toISOString(), pages: 8 } : { state: 'connected', syncedAt: NOW.toISOString(), pages: 8 },
   stageHistory: history,
   unlinkedPages: variant === 'full' ? [{ id: 'u1', title: 'Garden Planner', stage: 'Not started', url: 'https://notion.so/u1' }, { id: 'u2', title: 'Mood Journal', stage: 'In progress', url: 'https://notion.so/u2' }] : [],
-  settings: { developmentFolder: '/Users/gonzalo/Development', overrides: {}, ignored: variant === 'full' ? [all.find((p) => !p.notion)?.name ?? ''].filter(Boolean) : [], tokenSource: variant === 'firstrun' || variant === 'untracked' ? 'none' : 'keychain', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: variant !== 'firstrun' },
+  settings: { developmentFolder: '/Users/gonzalo/Development', overrides: {}, groups: {}, ignored: variant === 'full' ? [all.find((p) => !p.notion)?.name ?? ''].filter(Boolean) : [], tokenSource: variant === 'firstrun' || variant === 'untracked' ? 'none' : 'keychain', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: variant !== 'firstrun' },
 };
 await mkdir('out', { recursive: true });
 // A project with a missing pulse makes the Overview throw while drawing, to prove the crash screen catches it.

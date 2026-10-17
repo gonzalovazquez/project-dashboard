@@ -104,3 +104,19 @@ describe('inDays', () => {
     expect(inDays(new Date(2026, 9, 12, 12), 30)).toBe('2026-11-11');
   });
 });
+
+describe('groupSuggestion', () => {
+  const ps = [project({ name: 'TabSaver' }), project({ name: 'TabSaverAPI' }), project({ name: 'TabSaverMock' }), project({ name: 'TabSaverMockAPI' }), project({ name: 'app' }), project({ name: 'app-store' }), project({ name: 'other' })];
+  it('suggests the folder whose name this one starts with, longest first', async () => {
+    const { groupSuggestion } = await import('../src/renderer/src/viewmodel/library.js');
+    expect(groupSuggestion('TabSaverAPI', ps)?.name).toBe('TabSaver');
+    expect(groupSuggestion('TabSaverMockAPI', ps)?.name).toBe('TabSaverMock'); // the longest name that prefixes it
+    expect(groupSuggestion('Tab-Saver-Infra', ps)?.name).toBe('TabSaver');
+  });
+  it('ignores short names, the folder itself and unrelated folders', async () => {
+    const { groupSuggestion } = await import('../src/renderer/src/viewmodel/library.js');
+    expect(groupSuggestion('app-store', ps)).toBeUndefined();
+    expect(groupSuggestion('TabSaver', ps)).toBeUndefined();
+    expect(groupSuggestion('other', ps)).toBeUndefined();
+  });
+});

@@ -105,6 +105,7 @@ export const detailRows = (p: Project, now: Date): Array<[string, string]> => [
   ['Repository', p.github ? p.github.replace('https://github.com/', '') : 'No remote'],
   ['Branch', !p.isGit ? 'Not a git repository' : `${p.branch ?? 'detached'} · ${p.dirty ? 'uncommitted changes' : 'clean'}`],
   ['Last commit', p.pulse.lastActivityDays === null ? 'None' : `${ago(p.pulse.lastActivityDays)} ago`],
+  ...(p.members?.length ? [['Includes', p.members.join(', ')] as [string, string]] : []),
   ['Folder', p.path],
 ];
 

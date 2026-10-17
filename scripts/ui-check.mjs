@@ -46,6 +46,7 @@ const load = async (variant, scheme = 'light', size = { width: 1280, height: 150
       saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); Object.assign(s.settings, p); meta(); return { ok: true }; },
       getSettings: async () => s.settings, setNextAction: rec('setNextAction'), setCriterion: rec('setCriterion'),
       promote: rec('promote'), park: rec('park'), kill: rec('kill'), unpark: rec('unpark'), addToNotion: rec('addToNotion'),
+      groupFolder: rec('groupFolder'), ungroupFolder: rec('ungroupFolder'),
       ignoreFolder: rec('ignoreFolder', (name, ignored) => { s.settings.ignored = ignored ? [...new Set([...s.settings.ignored, name])] : s.settings.ignored.filter((n) => n !== name); meta(); }),
       linkFolder: rec('linkFolder'), markShipped: rec('markShipped'),
       applyReview: async (plan) => { window.__calls.push(['applyReview', plan]); return { ok: true, value: { changed: plan.decisions.length, notesWritten: plan.decisions.length, notesFailed: [] } }; },
@@ -480,6 +481,29 @@ for (const scheme of ['light', 'dark']) {
   await page.waitForSelector('[data-state=crashed]', { timeout: 5000 }).catch(() => {});
   await page.screenshot({ path: join(shots, 'crash.png') });
   check('a screen that cannot draw shows a recovery screen, not a blank window', (await page.$$('[data-state=crashed]')).length === 1 && (await page.$$('[data-action=reload]')).length === 1);
+  await page.close();
+}
+
+// ----- grouped folders
+{
+  const { page, errors } = await load('full', 'light', undefined, (s) => {
+    const base = s.projects.find((p) => !p.notion);
+    // Give the sample a TabSaver family: one tracked-looking primary folder and an API folder that should be offered for grouping.
+    s.projects.push({ ...base, name: 'TabSaverX', path: '/dev/TabSaverX' }, { ...base, name: 'TabSaverX-API', path: '/dev/TabSaverX-API' });
+    s.settings.groups = { 'dark-factory': ['legacy-folder'] };
+    return s;
+  });
+  await page.click('.item:has-text("Inbox")');
+  check('inbox suggests the product a folder belongs to', (await page.textContent('[data-inbox="TabSaverX-API"]')).includes('Looks like part of TabSaverX'));
+  await page.click('[data-inbox="TabSaverX-API"] [data-action=group-suggested]');
+  check('the suggestion groups the folder into that project', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['groupFolder', 'TabSaverX-API', 'TabSaverX']));
+  await page.selectOption('[data-inbox="TabSaverX"] [data-action=group]', 'dark-factory');
+  check('the group menu groups into any project', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['groupFolder', 'TabSaverX', 'dark-factory']));
+  await page.click('.item:has-text("Settings")');
+  check('settings lists grouped folders', (await page.$$('[data-group-member="legacy-folder"]')).length === 1);
+  await page.click('[data-group-member="legacy-folder"] [data-action=ungroup]');
+  check('Split out calls the bridge', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['ungroupFolder', 'legacy-folder']));
+  check('grouping screens have no console errors', errors.length === 0, errors.join('; '));
   await page.close();
 }
 
