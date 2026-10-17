@@ -47,6 +47,8 @@ export interface ScanResult {
 }
 
 export interface Criterion {
+  /** Notion block id, needed to write the checkbox back. */
+  blockId?: string;
   title: string;
   done: boolean;
   doneOn?: string;

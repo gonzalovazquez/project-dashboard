@@ -2,7 +2,7 @@ import type { Criterion, Life, NotionInfo, Stage } from '../../shared/types.js';
 
 /** Property names in the Brainstorming database. Rename here if your database differs. */
 export const PROPS = {
-  title: 'Name',
+  title: 'Idea',
   stage: 'Status',
   nextAction: 'Next action',
   focus: 'Focus',
@@ -17,7 +17,7 @@ const STAGES: Stage[] = ['Not started', 'In progress', 'Beta', 'General Availabl
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Prop = any;
 export interface NotionPage { id: string; url: string; created_time?: string; properties: Record<string, Prop> }
-export interface NotionBlock { type: string; last_edited_time?: string; to_do?: { rich_text: Array<{ plain_text: string }>; checked: boolean } }
+export interface NotionBlock { id?: string; type: string; last_edited_time?: string; to_do?: { rich_text: Array<{ plain_text: string }>; checked: boolean } }
 
 const text = (rt: Array<{ plain_text: string }> | undefined) => (rt ?? []).map((t) => t.plain_text).join('').trim();
 export const getTitle = (p?: Prop): string => text(p?.title);
@@ -32,7 +32,7 @@ export function parseCriterion(block: NotionBlock): Criterion | undefined {
   if (!raw) return undefined;
   const m = raw.match(/^(.*?)\s*\((\d+(?:\.\d+)?)\s*h\)$/i);
   const done = block.to_do.checked;
-  return { title: m ? m[1] : raw, hours: m ? Number(m[2]) : undefined, done, doneOn: done ? block.last_edited_time : undefined };
+  return { blockId: block.id, title: m ? m[1] : raw, hours: m ? Number(m[2]) : undefined, done, doneOn: done ? block.last_edited_time : undefined };
 }
 
 export const parseCriteria = (blocks: NotionBlock[]): Criterion[] => blocks.map(parseCriterion).filter((c): c is Criterion => !!c);

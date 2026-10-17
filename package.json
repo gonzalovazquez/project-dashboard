@@ -7,12 +7,17 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "scan": "tsx src/main/cli.ts"
+    "scan": "tsx src/main/cli.ts",
+    "notion:setup": "tsx src/main/notion/cli.ts setup",
+    "notion:pull": "tsx src/main/notion/cli.ts pull"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "@notionhq/client": "^5.27.1"
   }
 }

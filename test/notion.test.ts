@@ -45,7 +45,7 @@ describe('Notion parsing', () => {
   const page: NotionPage = {
     id: 'abc', url: 'https://notion.so/abc', created_time: '2026-08-01T00:00:00Z',
     properties: {
-      Name: { title: [{ plain_text: 'Buddy Recomp' }] },
+      Idea: { title: [{ plain_text: 'Buddy Recomp' }] },
       Status: { status: { name: 'Beta' } },
       'Next action': { rich_text: [{ plain_text: 'Fix Safari bug' }] },
       Focus: { checkbox: true },
@@ -59,7 +59,7 @@ describe('Notion parsing', () => {
     expect(info.criteria).toHaveLength(2);
   });
   it('falls back to created time and defaults', () => {
-    const p = { ...page, properties: { Name: page.properties.Name, Status: page.properties.Status } };
+    const p = { ...page, properties: { Idea: page.properties.Idea, Status: page.properties.Status } };
     expect(parsePage(p, [])).toMatchObject({ stageChangedAt: '2026-08-01T00:00:00Z', focus: false, life: 'active', nextAction: undefined });
   });
   it('skips pages with an unknown status', () => {

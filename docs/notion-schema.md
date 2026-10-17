@@ -5,7 +5,7 @@ The dashboard reads one Notion database (your Brainstorming board). Property nam
 
 | Property | Type | Purpose |
 |---|---|---|
-| Name | Title | Matched to a folder name (see below) |
+| Idea | Title | Matched to a folder name (see below) |
 | Status | Status | Not started, In progress, Beta, General Available |
 | Next action | Text | One thing you can finish in a sitting |
 | Focus | Checkbox | In one of the 3 focus slots |
@@ -13,6 +13,28 @@ The dashboard reads one Notion database (your Brainstorming board). Property nam
 | Stage changed | Date | When Status last changed. Falls back to the page's created time |
 | Park reason | Text | Why it was parked |
 | Revisit on | Date | When a parked project returns for review |
+
+## Setting it up
+
+Create a Notion integration, share the Brainstorming database with it, and export its token.
+
+```
+export NOTION_TOKEN=secret_...
+npm run notion:setup            # dry run: prints what is missing, changes nothing
+npm run notion:setup -- --apply # adds the missing properties. It only ever adds
+npm run notion:pull ~/Development   # read only: shows which folders matched which pages
+```
+
+`notion:setup` never removes or renames anything. Two things it cannot fix and will report instead:
+a property that already exists with the wrong type, and missing Status values (the API cannot add status options).
+
+## Stage changed
+
+Notion does not record when a status changed. The app keeps a small snapshot of each page's last seen status
+(`~/.project-dashboard/stage-snapshot.json`, or `$PROJECT_DASHBOARD_HOME`). When a page's status differs from the
+snapshot, the app writes today's date to **Stage changed**. The first time a page is seen it is only recorded as a
+baseline, because its real change date is unknown. Until the app has run, set Stage changed by hand for
+projects that have been in a stage for a while, or "time in stage" falls back to the page's creation date.
 
 ## Ship criteria
 
