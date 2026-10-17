@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project Dashboard Build Budget</title>
+<style>
+  :root {
+    --bg: #e4e7e6;
+    --surface: #ffffff;
+    --surface-2: #dadddb;
+    --code-bg: #1c1f21;
+    --code-text: #e9e6db;
+    --code-text-soft: #9aa39d;
+    --text: #1c1b19;
+    --text-soft: #4b5259;
+    --text-faint: #737b76;
+    --accent: #8a6329;
+    --accent-strong: #6b4c1c;
+    --accent-tint: #f1e6d2;
+    --rule: #c7cbc7;
+    --ok: #2f6b49;
+    --ok-tint: #e1ede6;
+    --warn: #a35316;
+    --warn-tint: #f3e2d2;
+    --shadow: 0 1px 2px rgba(28,27,25,0.06), 0 8px 24px -12px rgba(28,27,25,0.18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171a;
+      --surface: #1e2124;
+      --surface-2: #262a2d;
+      --code-bg: #0f1113;
+      --code-text: #ece7d8;
+      --code-text-soft: #8b948d;
+      --text: #ece8e0;
+      --text-soft: #a8ada6;
+      --text-faint: #7c8280;
+      --accent: #cf9f5c;
+      --accent-strong: #e6bc84;
+      --accent-tint: #362a17;
+      --rule: #34393c;
+      --ok: #6bb188;
+      --ok-tint: #17251d;
+      --warn: #d99050;
+      --warn-tint: #2b1e12;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 32px -16px rgba(0,0,0,0.6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #15171a;
+    --surface: #1e2124;
+    --surface-2: #262a2d;
+    --code-bg: #0f1113;
+    --code-text: #ece7d8;
+    --code-text-soft: #8b948d;
+    --text: #ece8e0;
+    --text-soft: #a8ada6;
+    --text-faint: #7c8280;
+    --accent: #cf9f5c;
+    --accent-strong: #e6bc84;
+    --accent-tint: #362a17;
+    --rule: #34393c;
+    --ok: #6bb188;
+    --ok-tint: #17251d;
+    --warn: #d99050;
+    --warn-tint: #2b1e12;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 32px -16px rgba(0,0,0,0.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--accent-tint); color: var(--accent-strong); }
+
+  a { color: var(--accent-strong); }
+  a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 6rem;
+  }
+
+  .mono {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", "Menlo", "Consolas", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- Header ---------- */
+
+  header.top {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    margin-bottom: 2.75rem;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 2.25rem;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--accent);
+    display: inline-block;
+    border-radius: 1px;
+    transform: rotate(45deg);
+  }
+
+  h1 {
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Noto Serif", ui-serif, serif;
+    font-weight: 600;
+    font-size: clamp(1.9rem, 4vw, 2.5rem);
+    line-height: 1.15;
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  .tagline {
+    color: var(--text-soft);
+    font-size: 1.05rem;
+    max-width: 56ch;
+    text-wrap: pretty;
+  }
+
+  /* ---------- Section headers ---------- */
+
+  h2 {
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Noto Serif", ui-serif, serif;
+    font-weight: 600;
+    font-size: 1.4rem;
+    letter-spacing: -0.005em;
+    margin: 0 0 0.9rem;
+    text-wrap: balance;
+  }
+
+  section { margin-bottom: 3rem; }
+
+  p { margin: 0 0 0.9rem; max-width: 68ch; }
+  p:last-child { margin-bottom: 0; }
+
+  .lede {
+    color: var(--text-soft);
+    max-width: 66ch;
+  }
+
+  /* ---------- Budget table ---------- */
+
+  .table-scroll { overflow-x: auto; border-radius: 10px; box-shadow: var(--shadow); }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 620px;
+    background: var(--surface);
+    font-size: 0.92rem;
+  }
+
+  thead th {
+    text-align: left;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid var(--accent);
+    background: var(--surface-2);
+  }
+
+  tbody td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-of-type td { border-bottom: none; }
+
+  tbody tr.subtotal td {
+    background: var(--surface-2);
+    font-weight: 600;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  tbody tr.total td {
+    background: var(--accent-tint);
+    color: var(--accent-strong);
+    font-weight: 700;
+    border-top: 2px solid var(--accent);
+  }
+
+  td.cost, th.cost { text-align: right; font-family: ui-monospace, "SF Mono", monospace; white-space: nowrap; }
+  td.week { font-family: ui-monospace, "SF Mono", monospace; color: var(--text-faint); white-space: nowrap; }
+
+  .model-tag {
+    display: inline-block;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.74rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    color: var(--text-soft);
+    white-space: nowrap;
+  }
+
+  .model-tag.opus { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-tint); }
+
+  /* ---------- Callout ---------- */
+
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 1.1rem 1.3rem;
+    box-shadow: var(--shadow);
+  }
+
+  .callout h3 {
+    margin: 0 0 0.6rem;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent-strong);
+    font-family: ui-monospace, "SF Mono", monospace;
+  }
+
+  .callout ul { margin: 0; padding-left: 1.2rem; }
+  .callout li { margin-bottom: 0.55rem; max-width: 62ch; }
+  .callout li:last-child { margin-bottom: 0; }
+
+  .callout .warn-line {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    margin-top: 0.9rem;
+    padding-top: 0.9rem;
+    border-top: 1px dashed var(--rule);
+  }
+
+  .warn-dot {
+    flex: none;
+    margin-top: 0.35rem;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--warn);
+  }
+
+  .warn-line strong { color: var(--warn); }
+
+  /* ---------- Subscription table ---------- */
+
+  .sub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .sub-card {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 1rem 1.15rem;
+    box-shadow: var(--shadow);
+  }
+
+  .sub-card .weeks {
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.76rem;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .sub-card .plan {
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin: 0.3rem 0 0.35rem;
+  }
+
+  .sub-card .why { color: var(--text-soft); font-size: 0.92rem; }
+
+  /* ---------- Phase cards ---------- */
+
+  .phase {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+  }
+
+  .phase-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 1.1rem 1.3rem 0.9rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .phase-id {
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--accent-strong);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .phase-title {
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Noto Serif", ui-serif, serif;
+    font-weight: 600;
+    font-size: 1.2rem;
+    margin: 0.15rem 0 0;
+    flex-basis: 100%;
+  }
+
+  .phase-meta {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-left: auto;
+  }
+
+  .phase-body { padding: 1rem 1.3rem 1.3rem; }
+
+  .phase-goal { color: var(--text-soft); margin-bottom: 1rem; }
+  .phase-goal strong { color: var(--text); }
+
+  .review-flag {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    background: var(--warn-tint);
+    color: var(--warn);
+    border: 1px solid var(--warn);
+    border-radius: 6px;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.88rem;
+    margin-bottom: 1rem;
+  }
+
+  details.prompt {
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  details.prompt summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 1rem;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--code-text-soft);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    user-select: none;
+  }
+
+  details.prompt summary::-webkit-details-marker { display: none; }
+
+  details.prompt summary::after {
+    content: "show";
+    color: var(--code-text-soft);
+    font-size: 0.72rem;
+    border: 1px solid var(--code-text-soft);
+    border-radius: 4px;
+    padding: 0.1rem 0.5rem;
+  }
+
+  details.prompt[open] summary::after { content: "hide"; }
+
+  details.prompt pre {
+    margin: 0;
+    padding: 0 1.1rem 1.2rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", monospace;
+    font-size: 0.86rem;
+    line-height: 1.65;
+    color: var(--code-text);
+  }
+
+  /* ---------- Loop note ---------- */
+
+  .loop-note {
+    margin-top: 2.5rem;
+  }
+
+  .loop-note pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 8px;
+    padding: 0.9rem 1.1rem;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", monospace;
+    font-size: 0.86rem;
+    overflow-x: auto;
+    margin: 0.75rem 0 0;
+  }
+
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    color: var(--text-faint);
+    font-size: 0.85rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">Project Dashboard · Build Budget</span>
+    <h1>Eight weeks, phase by phase, ready to hand to Claude Code</h1>
+    <p class="tagline">A macOS app that scans your Development folder, reads project status from Notion, and drives projects to done. This is the remaining build budget plus one kickoff prompt per week.</p>
+  </header>
+
+  <section id="ledger">
+    <h2>The ledger</h2>
+    <p class="lede">Phases One and Two (the scanner, focus rules and Notion parsing) are already built and are not budgeted. Ranges assume metered API pricing at Sonnet 5 / Opus 5 rates with normal prompt-cache behavior. They are planning estimates, not quotes: the low end assumes a phase goes close to plan and the high end assumes normal back-and-forth.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="week">Week</th>
+            <th>Phase</th>
+            <th>Focus</th>
+            <th>Model</th>
+            <th class="cost">Est. cost</th>
+          </tr>
+        </thead>
+        <tbody>
+                    <tr>
+            <td class="week mono">1</td>
+            <td>Phase Three</td>
+            <td>Notion client, schema setup, write-back</td>
+            <td><span class="model-tag">Sonnet 5</span></td>
+            <td class="cost mono">$25–45</td>
+          </tr>
+          <tr>
+            <td class="week mono">2</td>
+            <td>Phase Four</td>
+            <td>Electron shell, IPC, cache, settings</td>
+            <td><span class="model-tag opus">Opus 5</span></td>
+            <td class="cost mono">$35–55</td>
+          </tr>
+          <tr>
+            <td class="week mono">3</td>
+            <td>Phase Five (part 1)</td>
+            <td>Overview layout, tiles, highlights, table</td>
+            <td><span class="model-tag">Sonnet 5</span></td>
+            <td class="cost mono">$20–40</td>
+          </tr>
+          <tr>
+            <td class="week mono">4</td>
+            <td>Phase Five (part 2)</td>
+            <td>Overview charts and range switch</td>
+            <td><span class="model-tag">Sonnet 5</span></td>
+            <td class="cost mono">$20–40</td>
+          </tr>
+          <tr>
+            <td class="week mono">5</td>
+            <td>Phase Six</td>
+            <td>Deep dive for a focus project</td>
+            <td><span class="model-tag">Sonnet 5</span></td>
+            <td class="cost mono">$20–40</td>
+          </tr>
+          <tr>
+            <td class="week mono">6</td>
+            <td>Phase Seven</td>
+            <td>Park, kill, promote, library, inbox</td>
+            <td><span class="model-tag">Sonnet 5</span></td>
+            <td class="cost mono">$20–40</td>
+          </tr>
+          <tr class="subtotal">
+            <td colspan="4">MVP subtotal — weeks 1–6</td>
+            <td class="cost mono">$140–260</td>
+          </tr>
+          <tr>
+            <td class="week mono">7</td>
+            <td>Phase Eight</td>
+            <td>Guided weekly review and reminder</td>
+            <td><span class="model-tag">Sonnet 5</span></td>
+            <td class="cost mono">$20–40</td>
+          </tr>
+          <tr>
+            <td class="week mono">8</td>
+            <td>Phase Nine</td>
+            <td>File watching, failure states, packaged app</td>
+            <td><span class="model-tag">Sonnet 5</span></td>
+            <td class="cost mono">$20–40</td>
+          </tr>
+          <tr class="subtotal">
+            <td colspan="4">Stretch subtotal — weeks 7–8</td>
+            <td class="cost mono">$40–80</td>
+          </tr>
+          <tr class="total">
+            <td colspan="4">Total — weeks 1–8</td>
+            <td class="cost mono">$180–340</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="subscription">
+    <h2>Or pay flat</h2>
+    <p class="lede">Prices checked against Anthropic's published plans: Pro is $20/mo, Max 5x is $100/mo and Max 20x is $200/mo. Confirm on claude.com/pricing before subscribing.</p>
+    <div class="sub-grid">
+            <div class="sub-card">
+        <div class="weeks">Week 1</div>
+        <div class="plan">Claude Max 5x · $100/mo</div>
+        <div class="why">A Sonnet 5 week, but review cycles on a phase that writes to your live Notion database add iteration.</div>
+      </div>
+      <div class="sub-card">
+        <div class="weeks">Week 2</div>
+        <div class="plan">Claude Max 20x · $200/mo</div>
+        <div class="why">The one Opus 5 week. The Electron shell and the IPC surface shape every screen after it, so it earns the larger allowance.</div>
+      </div>
+      <div class="sub-card">
+        <div class="weeks">Weeks 3–8</div>
+        <div class="plan">Claude Max 5x · $100/mo</div>
+        <div class="why">Steady Sonnet 5 implementation of screens and flows that are already decided in the mockup and the plan.</div>
+      </div>
+    </div>
+    <p style="margin-top:1rem; color:var(--text-soft);">The plan spans about two months, so the metered total works out to roughly $90–170 a month. Flat, Max 5x for both months is $200, and moving the month that contains Week 2 to Max 20x makes it $300. Metered billing is likely cheaper if the work goes to plan; a flat plan is the safer choice if it does not.</p>
+  </section>
+
+  <section id="usage">
+    <h2>How to run these</h2>
+    <div class="callout">
+      <h3>Set it and forget it</h3>
+      <ul>
+        <li>Paste a week's prompt into a fresh Claude Code session opened on the Project Dashboard repo — one prompt starts one phase.</li>
+        <li>Each prompt is written to make its own routine implementation calls and only stop for genuine blockers, so an elevated permission mode (accept-edits or auto-approve) is what makes these actually unattended rather than a stream of confirmation prompts.</li>
+        <li>Work through the weeks in order — each prompt assumes the previous phase's scaffolding already exists in the repo.</li>
+      </ul>
+      <div class="warn-line">
+        <span class="warn-dot" aria-hidden="true"></span>
+        <span><strong>Exception: Week 1 (Phase Three).</strong> It changes the schema of and writes to your live Brainstorming database, so its prompt stops at a dry-run diff for you to approve. Don't override that with auto-approve; this is the one phase worth watching.</span>
+      </div>
+    </div>
+
+    <div class="loop-note">
+      <p class="lede">If a phase is going to run unattended for hours or across a day, pair the kickoff prompt with <span class="mono">/loop</span> for a periodic heartbeat instead of checking in manually:</p>
+      <pre>/loop 45m "Check progress on the current Project Dashboard phase task. If blocked, note why and continue with the next unblocked piece. If done, summarize and stop."</pre>
+      <p class="lede" style="margin-top:0.75rem;">Send the phase's kickoff prompt first to start the real work — <span class="mono">/loop</span> only keeps nudging it forward, it isn't a substitute for the task itself.</p>
+    </div>
+  </section>
+
+  <section id="phases">
+    <h2>The prompts</h2>
+
+        <article class="phase">
+      <div class="phase-head">
+        <span class="phase-id">Week 1</span>
+        <div class="phase-meta"><span class="model-tag">Sonnet 5</span></div>
+        <h3 class="phase-title">Phase Three · Notion client and database setup</h3>
+      </div>
+      <div class="phase-body">
+        <p class="phase-goal"><strong>Goal:</strong> Connect the dashboard to the real Brainstorming database in Notion so it can read project status and write focus, next action and lifecycle back.</p>
+        <div class="review-flag">Review before merge: this phase changes the schema of and writes to your live Brainstorming database. Look at the dry-run schema diff before anything is applied.</div>
+        <details class="prompt" open="">
+          <summary>Kickoff prompt</summary>
+          <pre>Goal: Connect the dashboard to the real Brainstorming database in Notion so it can read project status and write focus, next action and lifecycle back. This is the foundation every later screen reads from.
+
+Context: Repo: gonzalovazquez/project-dashboard (TypeScript, ESM, Node). Before anything else read README.md, docs/notion-schema.md and src/shared/types.ts. Existing code: the folder scanner in src/main/scanner (git history, GitHub link, tech, complexity, pulse), the focus rules in src/main/focus/rules.ts (progress, forecast, stall flags, health, closest-to-done ranking, and the limit of 3 focus projects), and Notion matching and parsing in src/main/notion. Run npm test and npm run typecheck before and after your changes; both must pass. The target interface is the interactive mockup in docs/ui-mockup.html (a macOS style window with a sidebar, an Overview screen and a per-project deep dive).
+Notion is the source of truth for stage, ship criteria, next action, focus and lifecycle. The Brainstorming database already has Idea (title), Status (Not started, In progress, Beta, General Available), Category, Type and Priority. It does not yet have the properties the app needs. docs/notion-schema.md lists them: Focus (checkbox), Lifecycle (select: Active, Parked, Killed), Next action (text), Stage changed (date), Park reason (text) and Revisit on (date). Ship criteria are to-do blocks in the page body, with an optional hour estimate in brackets at the end of the text. The database's data source id is 308975d3-26ba-809d-92ce-000bc4085b1d. Writing to Notion from the first release was a deliberate decision: do not fall back to a local file for focus or next actions. Parsing already exists in src/main/notion/parse.ts and folder matching in src/main/notion/match.ts.
+
+Approach:
+1. Add the official Notion SDK (@notionhq/client). Check its current documentation for how databases and data sources are queried and which API version applies, rather than assuming.
+2. Create src/main/notion/gateway.ts with a NotionGateway interface and a real implementation: list every page in the database (follow pagination), read a page's block children (follow pagination), update page properties (Focus, Lifecycle, Next action, Stage changed, Park reason, Revisit on), check or uncheck a to-do block, and create a page. Read the token from the NOTION_TOKEN environment variable for now; the keychain comes in the next phase.
+3. Add a schema setup command, npm run notion:setup, that compares the live database with the properties above and prints what is missing. It must be a dry run by default and only change anything when run with --apply.
+4. Stage changed: Notion does not record when a status changed. Implement a pure function detectStageChanges(previous, current) that returns the pages whose status differs from a stored snapshot, so the app can stamp Stage changed with today's date. Decide where the snapshot is stored (a JSON file under the app data folder is the starting assumption) and note the choice.
+5. Add npm run notion:pull, a read-only command that fetches the board, runs matchFolders against the folders in a given directory, and prints which folders matched which pages and which did not.
+6. Cover the gateway with unit tests using a fake client: pagination, property updates, block check and uncheck, and stage change detection.
+
+Work autonomously: make routine choices yourself (file names, error types, retry handling) and iterate until npm test and npm run typecheck pass. If NOTION_TOKEN is set, run npm run notion:pull against the real board as a read-only check and use the output to adjust matching. Never run notion:setup with --apply and never write to the real database. Stop and wait for review before considering this phase done: this phase changes the schema of and writes to the live Brainstorming database, so present the dry-run schema diff and wait for approval to apply it.
+
+When done: report the Notion API version you used, how Stage changed detection works and where the snapshot lives, the dry-run diff, which folders matched and which still need overrides, and any deviation from this plan.</pre>
+        </details>
+      </div>
+    </article>
+
+    <article class="phase">
+      <div class="phase-head">
+        <span class="phase-id">Week 2</span>
+        <div class="phase-meta"><span class="model-tag opus">Opus 5</span></div>
+        <h3 class="phase-title">Phase Four · Electron shell, IPC and persistence</h3>
+      </div>
+      <div class="phase-body">
+        <p class="phase-goal"><strong>Goal:</strong> Wrap the engine in an Electron app that scans on launch, merges Notion data, caches results, and exposes everything to the interface over a narrow, typed IPC surface.</p>
+        <details class="prompt">
+          <summary>Kickoff prompt</summary>
+          <pre>Goal: Wrap the engine in an Electron app that scans on launch, merges Notion data, caches results, and exposes everything to the interface over a narrow, typed IPC surface. Every UI phase depends on the shape you choose here.
+
+Context: Repo: gonzalovazquez/project-dashboard (TypeScript, ESM, Node). Before anything else read README.md, docs/notion-schema.md and src/shared/types.ts. Existing code: the folder scanner in src/main/scanner (git history, GitHub link, tech, complexity, pulse), the focus rules in src/main/focus/rules.ts (progress, forecast, stall flags, health, closest-to-done ranking, and the limit of 3 focus projects), and Notion matching and parsing in src/main/notion. Run npm test and npm run typecheck before and after your changes; both must pass. The target interface is the interactive mockup in docs/ui-mockup.html (a macOS style window with a sidebar, an Overview screen and a per-project deep dive). The Notion gateway from the previous phase lives in src/main/notion/gateway.ts and reads NOTION_TOKEN from the environment. The scanner can stream each project as it finishes (the onProject callback in scanRoot). Decisions already made: Electron for the shell, React with TypeScript and Vite for the interface, and a JSON cache in the app data folder (SQLite only if the cache proves too slow). The app must never modify the Development folder. The Notion token must be stored with Electron safeStorage, not in a plain file.
+
+Approach:
+1. Open choice: how to build Electron with Vite (for example electron-vite, vite-plugin-electron, or a hand-rolled setup). Evaluate two or three, pick one, and note the tradeoff.
+2. Main process: a service that scans the configured Development folder (default ~/Development), pulls the Notion database, matches folders to pages, merges them into Project objects from src/shared/types.ts, writes the JSON cache, and emits an update as each folder finishes so the interface can fill in progressively.
+3. Settings: the Development folder path and the Notion token, with the token encrypted via safeStorage. Include folder-to-page overrides as a settings field for now.
+4. A typed preload bridge using contextBridge. Expose only: getSnapshot, startScan, onProjectUpdate, setNextAction, setCriterion, promote, park, kill, unpark, and settings read and write. Each mutating call runs the pure rules in src/main/focus/rules.ts first and then writes through the Notion gateway; a rejected rule (for example a fourth focus project) returns a typed error and writes nothing.
+5. Renderer: a minimal React shell that lists projects from the snapshot. It exists only to prove the wiring; the real screens come next.
+6. Security: contextIsolation on, nodeIntegration off, no remote content, and a restrictive content security policy.
+7. Tests: unit-test the service and the IPC handlers with fakes for the filesystem, the scanner and the Notion gateway.
+
+Work autonomously: choose names, structure and dependencies yourself. Iterate until npm test and npm run typecheck pass and the Electron app builds. If this environment cannot launch Electron, say so plainly and verify the main process logic through unit tests instead of claiming the window works. Flag me only if a required choice has no safe default, for example if safeStorage is unavailable on the target platform.
+
+When done: report which build tooling you chose and why, the exact IPC surface, how the cache and settings are stored, whether you were able to launch the app, and any deviation from this plan.</pre>
+        </details>
+      </div>
+    </article>
+
+    <article class="phase">
+      <div class="phase-head">
+        <span class="phase-id">Week 3</span>
+        <div class="phase-meta"><span class="model-tag">Sonnet 5</span></div>
+        <h3 class="phase-title">Phase Five (part 1) · Overview layout, tiles and table</h3>
+      </div>
+      <div class="phase-body">
+        <p class="phase-goal"><strong>Goal:</strong> Build the first half of the Overview screen: the window layout, sidebar, toolbar, headline sentence, six headline tiles, auto-written highlights and the portfolio table.</p>
+        <details class="prompt">
+          <summary>Kickoff prompt</summary>
+          <pre>Goal: Build the first half of the Overview screen, the executive summary of every project: the window layout, sidebar, toolbar, headline sentence, six headline tiles, auto-written highlights and the portfolio table.
+
+Context: Repo: gonzalovazquez/project-dashboard (TypeScript, ESM, Node). Before anything else read README.md, docs/notion-schema.md and src/shared/types.ts. Existing code: the folder scanner in src/main/scanner (git history, GitHub link, tech, complexity, pulse), the focus rules in src/main/focus/rules.ts (progress, forecast, stall flags, health, closest-to-done ranking, and the limit of 3 focus projects), and Notion matching and parsing in src/main/notion. Run npm test and npm run typecheck before and after your changes; both must pass. The target interface is the interactive mockup in docs/ui-mockup.html (a macOS style window with a sidebar, an Overview screen and a per-project deep dive). The Electron shell and typed IPC from the previous phase provide a live Project snapshot to the renderer. The visual target is docs/ui-mockup.html, which you can open in a browser and compare against. The design direction was decided: it must feel like a macOS product, using system fonts, system colors, a translucent sidebar, a toolbar, rounded widget cards, segmented controls, and light and dark appearance that follow the system setting. The screen must be data driven: every number traces to git, files or Notion, and nothing is hard coded.
+
+Approach:
+1. Build the window layout: a sidebar with Dashboard, Focus (the focus projects with progress rings) and Library, and a footer showing Notion status and the last scan; a toolbar with the page title, a 4 or 12 week range switch, and rescan and appearance buttons.
+2. Put all derived numbers in pure, unit-tested view-model functions, not in components: the headline sentence, the six tiles (shipped in 90 days, focus progress, next ship, commits over 7 days with week-over-week change, focus health, needs attention), and the highlights list (Beta bottleneck, cheapest to finish, focus projects gone quiet, projects with no next action, commit trend, untracked folders). Use the existing functions in src/main/focus/rules.ts for progress, forecast, flags, health and ranking.
+3. Build the portfolio table with sortable columns (project, stage, progress, forecast, pulse sparkline, complexity, time in stage, last commit, health) and row selection that opens the deep dive for focus projects.
+4. Handle empty and loading states: a designed state while the first scan streams in, and a clear state when Notion is not connected.
+
+Work autonomously: make the routine layout, naming and component decisions yourself. Take a screenshot of the running renderer in light and dark, compare it with the mockup, and fix visible differences once. Test the view-model functions with fixed fixture data, including edge cases (no focus projects, no criteria, zero commits last week). Flag me only if the mockup contradicts the data model in a way you cannot resolve.
+
+When done: report what matches the mockup, what deliberately differs and why, and the view-model functions you added.</pre>
+        </details>
+      </div>
+    </article>
+
+    <article class="phase">
+      <div class="phase-head">
+        <span class="phase-id">Week 4</span>
+        <div class="phase-meta"><span class="model-tag">Sonnet 5</span></div>
+        <h3 class="phase-title">Phase Five (part 2) · Overview charts</h3>
+      </div>
+      <div class="phase-body">
+        <p class="phase-goal"><strong>Goal:</strong> Build the charts for the Overview screen so the executive summary shows where work is piling up and when each focus project is forecast to ship.</p>
+        <details class="prompt">
+          <summary>Kickoff prompt</summary>
+          <pre>Goal: Build the charts for the Overview screen so the executive summary shows where work is piling up and when each focus project is forecast to ship.
+
+Context: Repo: gonzalovazquez/project-dashboard (TypeScript, ESM, Node). Before anything else read README.md, docs/notion-schema.md and src/shared/types.ts. Existing code: the folder scanner in src/main/scanner (git history, GitHub link, tech, complexity, pulse), the focus rules in src/main/focus/rules.ts (progress, forecast, stall flags, health, closest-to-done ranking, and the limit of 3 focus projects), and Notion matching and parsing in src/main/notion. Run npm test and npm run typecheck before and after your changes; both must pass. The target interface is the interactive mockup in docs/ui-mockup.html (a macOS style window with a sidebar, an Overview screen and a per-project deep dive). The previous phase built the Overview layout, tiles, highlights and portfolio table. The charts are specified by docs/ui-mockup.html. Decision already made: hand drawn SVG charts in React with one shared tooltip, and no charting library for now. Charts follow the mockup's rules: one scale per chart, direct labels where there is room, a legend, theme-aware colors, hover tooltips, and a text alternative.
+
+Approach:
+1. Build these charts as small React components fed by pure, unit-tested data functions: forecast ship dates (a dot for the expected date and a band for the likely range), commits per week stacked by focus project with an Other series, progress against complexity (bubble size is recent commits, with a quick-wins zone and non-overlapping labels), days in current stage with a 45 day review line, an activity mix bar, and a technology breakdown.
+2. Open choice: the mockup's projects by stage over time chart used made-up history, but the real app only knows today's stages. Evaluate two or three options (an append-only daily snapshot log written on each scan, reconstructing from Stage changed dates, or omitting the chart until history exists), pick one, and note the tradeoff. Whatever you choose, the chart must show only real data and say so when history is short.
+3. Wire the 4 and 12 week range switch to the time series charts.
+4. Make the page work at narrow widths, with charts scaling and the table scrolling inside its own container.
+
+Work autonomously: choose chart dimensions, tick logic and tooltip details yourself. Check each chart against fixture data with extreme values (all zeros, a single project, a project with 40 commits in a week). Screenshot light and dark once and fix visible problems. Flag me only if a chart cannot be drawn honestly from the data available.
+
+When done: report which option you chose for the stage history chart and why, any chart that differs from the mockup, and how history is stored if you added a snapshot log.</pre>
+        </details>
+      </div>
+    </article>
+
+    <article class="phase">
+      <div class="phase-head">
+        <span class="phase-id">Week 5</span>
+        <div class="phase-meta"><span class="model-tag">Sonnet 5</span></div>
+        <h3 class="phase-title">Phase Six · Deep dive screen</h3>
+      </div>
+      <div class="phase-body">
+        <p class="phase-goal"><strong>Goal:</strong> Build the deep dive screen for a focus project: where to see exactly how close it is to done, what is in the way, and what to do next.</p>
+        <details class="prompt">
+          <summary>Kickoff prompt</summary>
+          <pre>Goal: Build the deep dive screen for a focus project: the place to see exactly how close it is to done, what is in the way, and what to do next.
+
+Context: Repo: gonzalovazquez/project-dashboard (TypeScript, ESM, Node). Before anything else read README.md, docs/notion-schema.md and src/shared/types.ts. Existing code: the folder scanner in src/main/scanner (git history, GitHub link, tech, complexity, pulse), the focus rules in src/main/focus/rules.ts (progress, forecast, stall flags, health, closest-to-done ranking, and the limit of 3 focus projects), and Notion matching and parsing in src/main/notion. Run npm test and npm run typecheck before and after your changes; both must pass. The target interface is the interactive mockup in docs/ui-mockup.html (a macOS style window with a sidebar, an Overview screen and a per-project deep dive). The Overview is complete. The deep dive is specified by docs/ui-mockup.html (select a focus project in its sidebar). Notion is the source of truth for ship criteria: they are to-do blocks in the project's page with an optional hour estimate, and a checked block's last edited time is used as its completion date. A known weakness is recorded in the plan: that edited time changes if the block text is edited later. If you find it distorts velocity in practice, record completion dates in the app instead and say so. The scanner currently does not return recent commit messages, which this screen needs.
+
+Approach:
+1. Extend the scanner to return the last five commit messages with their ages, with a test using a real temporary repository.
+2. Build the header (stage, pulse, days in stage, actions, and an editable next action that writes to Notion on change) and the six tiles (progress, forecast ship, velocity, remaining effort, commits over 4 weeks, health).
+3. Build the burnup chart (criteria completed over time with a dashed forecast and the likely range), the criteria checklist (hours remaining and completion dates; checking one writes the matching to-do block in Notion, with a clear failure state if the write fails), the 12 week commit heatmap with weekly bars, the health breakdown with risks, the complexity breakdown with language mix, and the details panel with repository, branch and recent commits.
+4. When every criterion is checked, offer a Mark shipped action that moves the page to General Available, frees the focus slot and stamps Stage changed.
+
+Work autonomously: make layout and component decisions yourself. Test the burnup and heatmap data functions with fixtures (no completions yet, everything done, a project with no criteria). Verify the Notion writes against the fake gateway. Screenshot light and dark once and fix visible problems. Flag me only if writing to a to-do block through the Notion API turns out to be impossible.
+
+When done: report how completion dates are derived, anything that differs from the mockup, and whether checking a criterion round-trips correctly through the fake gateway.</pre>
+        </details>
+      </div>
+    </article>
+
+    <article class="phase">
+      <div class="phase-head">
+        <span class="phase-id">Week 6</span>
+        <div class="phase-meta"><span class="model-tag">Sonnet 5</span></div>
+        <h3 class="phase-title">Phase Seven · Focus management, library and inbox</h3>
+      </div>
+      <div class="phase-body">
+        <p class="phase-goal"><strong>Goal:</strong> Make focus manageable and the whole library browsable, so the app is usable end to end.</p>
+        <details class="prompt">
+          <summary>Kickoff prompt</summary>
+          <pre>Goal: Make focus manageable and the whole library browsable, so the app is usable end to end.
+
+Context: Repo: gonzalovazquez/project-dashboard (TypeScript, ESM, Node). Before anything else read README.md, docs/notion-schema.md and src/shared/types.ts. Existing code: the folder scanner in src/main/scanner (git history, GitHub link, tech, complexity, pulse), the focus rules in src/main/focus/rules.ts (progress, forecast, stall flags, health, closest-to-done ranking, and the limit of 3 focus projects), and Notion matching and parsing in src/main/notion. Run npm test and npm run typecheck before and after your changes; both must pass. The target interface is the interactive mockup in docs/ui-mockup.html (a macOS style window with a sidebar, an Overview screen and a per-project deep dive). The Overview and deep dive exist. The focus rules, including the limit of 3 and the required swap when full, are already implemented and tested in src/main/focus/rules.ts; do not reimplement them in the interface. Park, kill and promote already write through the Notion gateway via the IPC surface. Decisions already made: the limit is enforced, not a warning; parking requires a reason and a revisit date; killing a project on purpose counts as finishing it. Open items from the plan: where folder-to-page overrides are stored, and whether related folders such as the four TabSaver folders should be grouped into one project.
+
+Approach:
+1. Build the sheet that appears when promoting a project into full focus slots: pick which focus project to park, a reason, and a revisit period. Build park, unpark and kill actions with the same pattern.
+2. Build the Library: all projects in a sortable table with pull-down filters for stage, activity, complexity and technology, a search field, a clear filters action, and sidebar shortcuts for Parked and Shipped.
+3. Build the Inbox for folders with no Notion page, each with Add to Notion (creates a page with status Not started and the matching name) and Ignore.
+4. Decide where folder-to-page overrides live. Evaluate a local settings file against a Folder property on the Notion page, pick one, and note the tradeoff. Let the user create an override from the Inbox by pointing a folder at an existing page.
+5. Do not build project grouping. Record in your summary whether you think it should be built and what it would take.
+
+Work autonomously: choose component structure, copy and states yourself. Test the sheet logic and the filters with fixtures, including the rejected promotion when the sheet is skipped. Screenshot light and dark once and fix visible problems. Flag me only if a Notion write needed here has no safe way to be undone.
+
+When done: report how overrides are stored and why, how a failed Notion write is shown to the user, and your recommendation on grouping related folders.</pre>
+        </details>
+      </div>
+    </article>
+
+    <article class="phase">
+      <div class="phase-head">
+        <span class="phase-id">Week 7</span>
+        <div class="phase-meta"><span class="model-tag">Sonnet 5</span></div>
+        <h3 class="phase-title">Phase Eight · Weekly review</h3>
+      </div>
+      <div class="phase-body">
+        <p class="phase-goal"><strong>Goal:</strong> Build the weekly review, the ritual that forces decisions on stalled projects and picks the next three.</p>
+        <details class="prompt">
+          <summary>Kickoff prompt</summary>
+          <pre>Goal: Build the weekly review, the ritual that forces decisions on stalled projects and picks the next three.
+
+Context: Repo: gonzalovazquez/project-dashboard (TypeScript, ESM, Node). Before anything else read README.md, docs/notion-schema.md and src/shared/types.ts. Existing code: the folder scanner in src/main/scanner (git history, GitHub link, tech, complexity, pulse), the focus rules in src/main/focus/rules.ts (progress, forecast, stall flags, health, closest-to-done ranking, and the limit of 3 focus projects), and Notion matching and parsing in src/main/notion. Run npm test and npm run typecheck before and after your changes; both must pass. The target interface is the interactive mockup in docs/ui-mockup.html (a macOS style window with a sidebar, an Overview screen and a per-project deep dive). The Weekly review view in docs/ui-mockup.html shows the four steps. Everything it needs exists: flags, health, forecast and the finish-line ranking come from src/main/focus/rules.ts, and park, kill and promote already write to Notion. Decision already made: a guided flow, not a dashboard view the user checks alone, because the review exists to force decisions. Saving writes the resulting changes to Notion and also writes a dated summary of the review.
+
+Approach:
+1. Build the four steps: what moved (commits and criteria this week, and focus projects with forecasts), decide (continue, park or kill for every flagged project), pick focus (up to three, ranked by closeness to done), and confirm (one next action per focus project and a summary of changes). Saving is disabled until every focus project has a next action.
+2. Apply the review as safely as Notion allows: validate everything with the pure rules first, then write, and show exactly what succeeded if a write fails partway.
+3. Open choice: where the dated summary is written in Notion. Evaluate two or three options (a child page under a Weekly reviews page, a block appended to each focus project's page, or a single log page), pick one, and note the tradeoff.
+4. Open choice: the weekly reminder. Evaluate an Electron notification at a configured weekday and time while the app is running against a system-level scheduler or a calendar event, pick one, and state its limitation plainly.
+5. Add a settings field for the reminder day and time.
+
+Work autonomously: choose copy, structure and state handling yourself. Test the review logic with fixtures: no flagged projects, a project parked in the review that was also picked for focus, and a partial write failure. Screenshot light and dark once and fix visible problems. Flag me only if the reminder choice requires permissions you cannot request.
+
+When done: report where summaries are written, how reminders work and what they cannot do, and how a partial failure is handled.</pre>
+        </details>
+      </div>
+    </article>
+
+    <article class="phase">
+      <div class="phase-head">
+        <span class="phase-id">Week 8</span>
+        <div class="phase-meta"><span class="model-tag">Sonnet 5</span></div>
+        <h3 class="phase-title">Phase Nine · Polish and packaging</h3>
+      </div>
+      <div class="phase-body">
+        <p class="phase-goal"><strong>Goal:</strong> Polish the app and package it so it opens like any other Mac application.</p>
+        <details class="prompt">
+          <summary>Kickoff prompt</summary>
+          <pre>Goal: Polish the app and package it so it opens like any other Mac application.
+
+Context: Repo: gonzalovazquez/project-dashboard (TypeScript, ESM, Node). Before anything else read README.md, docs/notion-schema.md and src/shared/types.ts. Existing code: the folder scanner in src/main/scanner (git history, GitHub link, tech, complexity, pulse), the focus rules in src/main/focus/rules.ts (progress, forecast, stall flags, health, closest-to-done ranking, and the limit of 3 focus projects), and Notion matching and parsing in src/main/notion. Run npm test and npm run typecheck before and after your changes; both must pass. The target interface is the interactive mockup in docs/ui-mockup.html (a macOS style window with a sidebar, an Overview screen and a per-project deep dive). All screens and the weekly review are built. The app currently rescans on launch and on a manual button. Code signing is deliberately deferred because it needs an Apple developer account; an unsigned build is acceptable for personal use.
+
+Approach:
+1. File watching: rescan a project when its files change. Evaluate chokidar against Node's built-in recursive watching, pick one, debounce updates, ignore dependency and build folders, and make sure watching does not keep the CPU busy on large folders.
+2. Failure states: when Notion is unreachable or the token is invalid, show the last cached data with a clear banner and disable writes instead of failing silently. Handle a missing or unreadable Development folder.
+3. First run: a short setup that asks for the Development folder and the Notion token, tests the connection, and shows the folder-to-page matches so overrides can be set.
+4. Packaging: build a macOS app and disk image. Evaluate electron-builder against Electron Forge, pick one, and note the tradeoff. Document in the README how to open an unsigned app and what signing would involve later.
+5. Update the README with install steps, the Notion setup, and the current limitations.
+
+Work autonomously: choose names, icons and defaults yourself. Test debouncing and the failure states with fakes. Build the package if the environment allows it and say plainly if it does not. Flag me only if packaging requires something only I can supply.
+
+When done: report which watcher and packager you chose and why, whether you could build and launch the package, and a list of known limitations.</pre>
+        </details>
+      </div>
+    </article>
+
+  </section>
+
+  <footer>
+    Costs are planning estimates, not quotes; actual spend depends on how many iterations each phase takes. Weeks can be reordered or split: the dependency order between phases matters, not the calendar. Phases One and Two are already built and are not in this ledger.
+  </footer>
+
+</div>
+
+</body>
+</html>
