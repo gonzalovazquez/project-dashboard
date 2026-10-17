@@ -1,6 +1,9 @@
 import { WIP_LIMIT, type Criterion, type Project } from './types.js';
 
 const DAY = 86_400_000;
+
+/** Days in a stage after which a project is flagged for review. Charts draw the same line. */
+export const REVIEW_DAYS = { 'In progress': 30, 'Beta': 45 } as const;
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * DAY);
 
 export interface Flag { code: 'stuck-beta' | 'stuck-progress' | 'no-next' | 'no-commits' | 'quiet'; text: string }
@@ -38,8 +41,8 @@ export function flags(p: Project, now: Date): Flag[] {
   if (!isLive(p) || !p.notion) return [];
   const out: Flag[] = [];
   const days = stageDays(p, now);
-  if (p.notion.stage === 'Beta' && days > 45) out.push({ code: 'stuck-beta', text: `In Beta for ${days} days` });
-  if (p.notion.stage === 'In progress' && days > 30) out.push({ code: 'stuck-progress', text: `In progress for ${days} days` });
+  if (p.notion.stage === 'Beta' && days > REVIEW_DAYS.Beta) out.push({ code: 'stuck-beta', text: `In Beta for ${days} days` });
+  if (p.notion.stage === 'In progress' && days > REVIEW_DAYS['In progress']) out.push({ code: 'stuck-progress', text: `In progress for ${days} days` });
   if (!p.notion.nextAction) out.push({ code: 'no-next', text: 'No next action' });
   const idle = p.pulse.lastActivityDays;
   if (idle !== null) {

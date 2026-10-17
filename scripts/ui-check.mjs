@@ -67,7 +67,7 @@ for (const scheme of ['light', 'dark']) {
     check('no banner when connected', (await page.$$('[data-banner]')).length === 0);
     const tops = await page.$$eval('[data-kpi]', (n) => n.map((x) => Math.round(x.getBoundingClientRect().top)));
     check('the six tiles share one row on a wide window', new Set(tops).size === 1, tops.join(','));
-    const lines = await page.$$eval('tbody tr', (rs) => rs.map((r) => {
+    const lines = await page.$$eval('tbody tr[data-project]', (rs) => rs.map((r) => {
       const range = document.createRange();
       range.selectNodeContents(r.children[5]);
       return new Set([...range.getClientRects()].filter((q) => q.height > 0).map((q) => Math.round(q.top))).size;
@@ -75,6 +75,71 @@ for (const scheme of ['light', 'dark']) {
     check('complexity stays on one line in every row', lines.every((n) => n === 1), lines.join(','));
     check('the sidebar shows the folder path from its first character', (await page.textContent('.sidefoot .path')).startsWith('/Users/'));
     check('page does not scroll sideways', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+
+    // ----- charts
+    const charts = await page.$$eval('[data-chart]', (n) => n.map((x) => x.getAttribute('data-chart')));
+    check('all seven charts are on the page', JSON.stringify(charts.sort()) === JSON.stringify(['activity', 'age', 'commits', 'forecast', 'scatter', 'stages', 'tech']), charts.join(','));
+    const legends = await page.$$eval('[data-chart]', (n) => Object.fromEntries(n.map((x) => [x.getAttribute('data-chart'), x.querySelectorAll('.legend .lg').length])));
+    check('stacked and scatter charts have a legend', legends.commits === 4 && legends.stages === 4 && legends.scatter === 4, JSON.stringify(legends));
+    check('every chart has a table view', (await page.$$('[data-chart] details.tview table')).length === 7);
+    const tableRows = await page.$$eval('[data-chart=commits] details.tview tbody tr', (r) => r.length);
+    check('the commits table has one row per week', tableRows === 12, String(tableRows));
+    check('the forecast shows one dot per focus project', (await page.$$('[data-chart=forecast] svg circle:not(.hit)')).length === 3);
+    check('the age chart has a bar and a review tick for each active project', (await page.$$('[data-chart=age] .review-tick')).length === 6);
+    check('the stage chart draws recorded weeks without a sparse note', (await page.$$('[data-chart=stages] g.col')).length >= 5 && (await page.$$('[data-note=history]')).length === 0);
+
+    const legendGeo = await page.evaluate(() => [...document.querySelectorAll('[data-chart]')].flatMap((c) => {
+      const items = [...c.querySelectorAll('.legend .lg')].map((i) => i.getBoundingClientRect());
+      const next = c.querySelector('details.tview summary')?.getBoundingClientRect();
+      const bad = [];
+      items.forEach((a, i) => { if (a.width < 30) bad.push(`${c.dataset.chart}: item ${i} collapsed to ${Math.round(a.width)}px`); items.slice(i + 1).forEach((b, j) => { if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) bad.push(`${c.dataset.chart}: items ${i} and ${i + j + 1} overlap`); }); });
+      if (next && items.length && Math.max(...items.map((i) => i.bottom)) > next.top + 1) bad.push(`${c.dataset.chart}: legend runs into the table link`);
+      return bad;
+    }));
+    check('legends are laid out cleanly in every chart', legendGeo.length === 0, legendGeo.join('; '));
+    const tileTops = await page.$$eval('[data-kpi] .v', (n) => n.map((x) => Math.round(x.getBoundingClientRect().top)));
+    check('all tile values line up', new Set(tileTops).size === 1, tileTops.join(','));
+    const fullNames = await page.$$eval('[data-chart=commits] svg text', (n) => n.map((t) => t.textContent));
+    check('direct labels on the commits chart are readable, not cut to a few letters', fullNames.some((t) => t === 'Dark Factory') && fullNames.some((t) => /^AI Newsletter/.test(t)), fullNames.filter((t) => /…/.test(t)).join(','));
+    const radii = await page.$$eval('[data-chart=scatter] [data-bubble]', (g) => g.map((x) => parseFloat(x.querySelector('circle:not(.hit)').getAttribute('r'))));
+    check('bigger bubbles are drawn first so small ones stay on top', radii.every((r, i) => i === 0 || radii[i - 1] >= r), radii.join(','));
+
+    // validated colors reach the screen
+    const colors = await page.evaluate(() => ['--series-1', '--series-2', '--series-3', '--stage-0', '--stage-3'].map((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()));
+    check('light chart colors are the validated ones', JSON.stringify(colors) === JSON.stringify(['#2a78d6', '#eb6834', '#1baf7a', '#86b6ef', '#1c5cab']), colors.join(','));
+    const painted = await page.$$eval('[data-chart=commits] svg g.col > path, [data-chart=commits] svg g.col > rect:not(.hit)', (n) => new Set(n.map((x) => getComputedStyle(x).fill)).size);
+    check('commit segments use four distinct fills', painted === 4, String(painted));
+
+    // tooltips: pointer and keyboard
+    await page.hover('[data-chart=commits] .hit >> nth=11');
+    check('hovering a week shows a tooltip with every series and a total', await page.isVisible('.tip') && (await page.textContent('.tip')).includes('Total') && (await page.textContent('.tip')).includes('Week ending'));
+    await page.mouse.move(5, 5);
+    check('the tooltip goes away', !(await page.isVisible('.tip').catch(() => false)));
+    await page.focus('[data-chart=scatter] [data-bubble="Buddy Recomp"] .hit');
+    check('keyboard focus on a bubble shows the same details', (await page.textContent('.tip')).includes('Complexity') && (await page.textContent('.tip')).includes('Buddy Recomp'));
+    await page.evaluate(() => document.activeElement.blur());
+
+    // labels never collide or leave their chart
+    const clash = await page.evaluate(() => {
+      const svg = document.querySelector('[data-chart=scatter] svg');
+      const boxes = [...svg.querySelectorAll('text.lbl')].map((t) => ({ id: t.getAttribute('data-label'), r: t.getBoundingClientRect() }));
+      const circles = [...svg.querySelectorAll('[data-bubble] circle:not(.hit)')].map((c) => c.getBoundingClientRect());
+      const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      const out = [];
+      boxes.forEach((a, i) => { boxes.slice(i + 1).forEach((b) => { if (hit(a.r, b.r)) out.push(`${a.id}/${b.id}`); }); circles.forEach((c) => { const pad = 1; if (a.r.left < c.right - pad && c.left + pad < a.r.right && a.r.top < c.bottom - pad && c.top + pad < a.r.bottom) out.push(`${a.id}/bubble`); }); });
+      return { n: boxes.length, out };
+    });
+    check('scatter labels do not overlap each other or any bubble', clash.n === 6 && clash.out.length === 0, JSON.stringify(clash));
+    const clipped = await page.evaluate(() => [...document.querySelectorAll('svg.chart')].flatMap((svg) => { const s = svg.getBoundingClientRect(); return [...svg.querySelectorAll('text')].filter((t) => { const r = t.getBoundingClientRect(); return r.width > 0 && (r.left < s.left - 1 || r.right > s.right + 1); }).map((t) => t.textContent); }));
+    check('no chart text is clipped by its chart', clipped.length === 0, clipped.join(' | '));
+
+    // the range switch drives the time series charts
+    await page.click('.seg button:has-text("4 weeks")');
+    check('4 weeks shows four commit columns', (await page.$$('[data-chart=commits] g.col')).length === 4);
+    check('the commits table follows the range', (await page.$$('[data-chart=commits] details.tview tbody tr')).length === 4);
+    check('the forecast does not change with the range', (await page.$$('[data-chart=forecast] svg circle:not(.hit)')).length === 3);
+    await page.click('.seg button:has-text("12 weeks")');
+    check('12 weeks restores twelve', (await page.$$('[data-chart=commits] g.col')).length === 12);
 
     // sorting
     const byFinish = await order(page);
@@ -86,7 +151,7 @@ for (const scheme of ['light', 'dark']) {
     await page.click('th button:has-text("Project")');
     check('second click reverses', JSON.stringify(await order(page)) === JSON.stringify([...byName].reverse()));
     await page.click('th button:has-text("In stage")');
-    const ages = (await page.$$eval('tbody tr', (rs) => rs.map((r) => r.children[6].textContent))).map((t) => parseInt(t, 10));
+    const ages = (await page.$$eval('tbody tr[data-project]', (rs) => rs.map((r) => r.children[6].textContent))).map((t) => parseInt(t, 10));
     check('sorting by time in stage puts the oldest first', ages.length === 6 && ages.every((a, i) => i === 0 || ages[i - 1] >= a), ages.join(','));
 
     // selection and navigation
@@ -106,6 +171,7 @@ for (const scheme of ['light', 'dark']) {
     // toolbar
     await page.click('.seg button:has-text("4 weeks")');
     check('range switch updates', (await page.getAttribute('.seg button:has-text("4 weeks")', 'aria-pressed')) === 'true');
+    await page.click('.seg button:has-text("12 weeks")');
     await page.click('[aria-label="Rescan folders"]');
     check('rescan calls the main process', (await page.evaluate(() => window.__calls)).includes('startScan'));
     await page.click('[aria-label="Switch between light and dark"]');
@@ -117,6 +183,8 @@ for (const scheme of ['light', 'dark']) {
     check('appearance toggle asks for light while dark', JSON.stringify((await page.evaluate(() => window.__calls)).at(-1)) === JSON.stringify(['saveSettings', { appearance: 'light' }]));
     const bg = await page.evaluate(() => getComputedStyle(document.querySelector('.main')).backgroundColor);
     check('dark mode uses dark surfaces', bg === 'rgb(28, 28, 30)', bg);
+    const dark = await page.evaluate(() => ['--series-1', '--series-2', '--series-3', '--stage-0', '--stage-3'].map((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()));
+    check('dark chart colors are the validated ones', JSON.stringify(dark) === JSON.stringify(['#3987e5', '#d95926', '#199e70', '#1c5cab', '#86b6ef']), dark.join(','));
   }
   await page.close();
 }
@@ -131,6 +199,19 @@ for (const scheme of ['light', 'dark']) {
   const stacked = await page.$eval('[data-state=no-tracked]', (el) => { const [a, b] = [...el.children].map((c) => c.getBoundingClientRect()); return a.bottom <= b.top + 1; });
   check('without Notion: the empty message stacks its heading above its explanation', stacked);
   check('without Notion: Notion tiles show dashes', (await page.$$eval('[data-kpi="progress"] .v', (n) => n[0].textContent)) === '–');
+  await page.close();
+}
+{
+  const { page } = await load('sparse', 'light', { width: 1280, height: 1500 });
+  await page.screenshot({ path: join(shots, 'sparse-history.png') });
+  check('one day of history: says when it starts and draws that day', (await page.textContent('[data-note=history]')).includes('History starts') && (await page.$$('[data-chart=stages] g.col')).length === 1);
+  await page.close();
+}
+{
+  const { page } = await load('untracked', 'light', { width: 1280, height: 1500 });
+  check('without Notion: the stage chart explains it needs Notion', (await page.textContent('[data-note=history]')).includes('Connect Notion'));
+  check('without Notion: the forecast says there is nothing to forecast', (await page.getAttribute('[data-state=no-forecast]', 'data-state')) === 'no-forecast');
+  check('without Notion: commits and technology still draw', (await page.$$('[data-chart=commits] g.col')).length === 12 && (await page.$$('[data-chart=tech] .brow')).length > 0);
   await page.close();
 }
 {
@@ -157,6 +238,10 @@ for (const scheme of ['light', 'dark']) {
   await page.screenshot({ path: join(shots, 'narrow.png') });
   const narrowTops = await page.$$eval('[data-kpi]', (n) => n.map((x) => Math.round(x.getBoundingClientRect().top)));
   check('narrow window: tiles form two even rows of three', JSON.stringify([...new Set(narrowTops)].map((t) => narrowTops.filter((x) => x === t).length)) === JSON.stringify([3, 3]), narrowTops.join(','));
+  const spill = await page.evaluate(() => [...document.querySelectorAll('svg.chart')].filter((svg) => svg.getBoundingClientRect().right > svg.closest('.card').getBoundingClientRect().right + 1).length);
+  check('narrow window: every chart fits inside its card', spill === 0, String(spill));
+  const clash2 = await page.evaluate(() => { const svg = document.querySelector('[data-chart=scatter] svg'); const b = [...svg.querySelectorAll('text.lbl')].map((t) => t.getBoundingClientRect()); const hit = (a, c) => a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom; let n = 0; b.forEach((a, i) => b.slice(i + 1).forEach((c) => { if (hit(a, c)) n++; })); return n; });
+  check('narrow window: scatter labels still do not overlap', clash2 === 0, String(clash2));
   check('narrow window: no page-level sideways scroll', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   check('narrow window: the table scrolls inside its own box', await page.evaluate(() => { const t = document.querySelector('.tw'); return t.scrollWidth >= t.clientWidth; }));
   await page.close();

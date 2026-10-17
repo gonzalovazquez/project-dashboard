@@ -1,4 +1,4 @@
-import type { Project } from './types.js';
+import type { Project, StagePoint } from './types.js';
 
 export type Appearance = 'system' | 'light' | 'dark';
 export const APPEARANCES: Appearance[] = ['system', 'light', 'dark'];
@@ -28,6 +28,8 @@ export interface Snapshot {
   scanError?: string;
   notion: NotionStatus;
   settings: PublicSettings;
+  /** Daily record of projects per stage, oldest first. Starts when the app first sees Notion. */
+  stageHistory: StagePoint[];
 }
 
 export type ErrorCode =

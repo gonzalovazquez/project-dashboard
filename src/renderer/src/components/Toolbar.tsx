@@ -1,6 +1,7 @@
 import { Icon } from './Icon.js';
 
-export type Range = 4 | 12;
+export type { Range } from '../viewmodel/charts.js';
+import type { Range } from '../viewmodel/charts.js';
 
 interface Props {
   title: string;

@@ -14,7 +14,7 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "smoke": "bash scripts/smoke.sh",
-    "ui-check": "npm run build --silent && for v in full untracked empty scanning scanning-empty; do tsx scripts/make-sample.ts $v; done && node scripts/ui-check.mjs"
+    "ui-check": "npm run build --silent && for v in full sparse untracked empty scanning scanning-empty; do tsx scripts/make-sample.ts $v; done && node scripts/ui-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

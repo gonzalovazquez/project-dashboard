@@ -3,6 +3,7 @@ import type { Snapshot } from '../../shared/ipc.js';
 import { Overview } from './components/Overview.js';
 import { Placeholder } from './components/Placeholder.js';
 import { Sidebar } from './components/Sidebar.js';
+import { TipProvider } from './components/charts/infra.js';
 import { Toolbar, type Range } from './components/Toolbar.js';
 import { OVERVIEW, PLACEHOLDER, type Route } from './route.js';
 import { applyUpdate } from './state.js';
@@ -54,16 +55,18 @@ export function App() {
       : { title: PLACEHOLDER[current.view].title, subtitle: '' };
 
   return (
+    <TipProvider>
     <div className="app">
       <Sidebar model={model} route={current} notion={snap.notion} scanning={snap.scanning} scannedAt={snap.scannedAt} folder={snap.settings.developmentFolder} onNavigate={setRoute} />
       <div className="main">
         <Toolbar title={meta.title} subtitle={meta.subtitle} range={current.view === 'overview' ? range : undefined} onRange={setRange} scanning={snap.scanning} onRescan={rescan} onToggleAppearance={toggleAppearance} />
         <div className="content" data-route={current.view}>
-          {current.view === 'overview' && <Overview snap={snap} now={now} onOpenProject={(name) => setRoute({ view: 'project', name })} />}
+          {current.view === 'overview' && <Overview snap={snap} now={now} range={range} onOpenProject={(name) => setRoute({ view: 'project', name })} />}
           {current.view === 'project' && <Placeholder view="project" detail={meta.title} />}
           {current.view !== 'overview' && current.view !== 'project' && <Placeholder view={current.view} />}
         </div>
       </div>
     </div>
+    </TipProvider>
   );
 }

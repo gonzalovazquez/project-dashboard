@@ -1,4 +1,4 @@
-import type { NotionInfo, Project, ScanResult } from '../../shared/types.js';
+import type { NotionInfo, Project, ScanResult, StagePoint } from '../../shared/types.js';
 import {
   fail, ok,
   type Appearance, type LinkKind, type NotionStatus, type ProjectUpdate, type PublicSettings, type Result, type SettingsPatch, type Snapshot, type SwapChoice,
@@ -9,6 +9,7 @@ import type { PageChange } from '../notion/gateway.js';
 import { hasChanges } from '../notion/schema.js';
 import { detectStageChanges, loadSnapshot, saveSnapshot } from '../notion/stage.js';
 import type { Cache } from './cache.js';
+import { localDate, stageCounts, type HistoryStore } from './history.js';
 import { matchNotion, mergeProjects, toProject } from './merge.js';
 import { SecureStorageUnavailable, type TokenStore } from './secrets.js';
 import { validatePatch, type SettingsStore } from './settings.js';
@@ -17,6 +18,8 @@ export interface ServiceDeps {
   scanFolders(root: string, onProject: (p: ScanResult) => void, now: Date): Promise<ScanResult[]>;
   notion(token: string): NotionBackend;
   cache: Cache;
+  /** Optional so tests that do not care about history stay small. */
+  history?: HistoryStore;
   settings: SettingsStore;
   tokens: Pick<TokenStore, 'get' | 'set' | 'secureStorageAvailable'>;
   stageSnapshotPath: string;
@@ -50,6 +53,7 @@ export class DashboardService {
   private scanning = false;
   private scanError?: string;
   private notion: NotionStatus = { state: 'not-configured' };
+  private stageHistory: StagePoint[] = [];
   private running?: Promise<void>;
   private listeners = new Set<(u: ProjectUpdate) => void>();
   private backend?: { token: string; api: NotionBackend };
@@ -63,6 +67,7 @@ export class DashboardService {
     const cached = await this.d.cache.load();
     if (cached) { this.projects = cached.projects; this.scannedAt = cached.scannedAt; }
     this.d.setAppearance?.((await this.d.settings.load()).appearance);
+    this.stageHistory = (await this.d.history?.load()) ?? [];
   }
 
   onUpdate(listener: (u: ProjectUpdate) => void): () => void {
@@ -78,7 +83,7 @@ export class DashboardService {
   }
 
   async getSnapshot(): Promise<Snapshot> {
-    return { projects: this.projects, scannedAt: this.scannedAt, scanning: this.scanning, scanError: this.scanError, notion: this.notion, settings: await this.getSettings() };
+    return { projects: this.projects, scannedAt: this.scannedAt, scanning: this.scanning, scanError: this.scanError, notion: this.notion, settings: await this.getSettings(), stageHistory: this.stageHistory };
   }
 
   private getBackend(token: string): NotionBackend {
@@ -143,6 +148,9 @@ export class DashboardService {
       this.projects = mergeProjects(scans, infoByFolder);
       this.scannedAt = now.toISOString();
       await this.d.cache.save({ scannedAt: this.scannedAt, projects: this.projects });
+      if (this.d.history && this.notion.state !== 'not-configured' && this.notion.state !== 'error') {
+        this.stageHistory = await this.d.history.record({ date: localDate(now), counts: stageCounts(this.projects) });
+      }
     } catch (e) {
       this.scanError = msg(e);
     } finally {

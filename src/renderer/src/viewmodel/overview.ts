@@ -91,7 +91,7 @@ export function buildOverview(projects: Project[], now: Date): OverviewModel {
 
   const kpis: Kpi[] = [
     {
-      id: 'shipped', label: 'Shipped, last 90 days', color: 'green',
+      id: 'shipped', label: 'Shipped, 90 days', color: 'green',
       value: hasNotion ? String(shipped) : dash,
       unit: hasNotion ? `of ${tracked.length} tracked` : undefined,
       sub: hasNotion ? `${plural(projects.filter((p) => p.notion?.stage === 'General Available').length, 'project')} in General Available` : connect,

@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CHANNELS } from '../shared/ipc.js';
 import { createFileCache } from './app/cache.js';
+import { createHistoryStore } from './app/history.js';
 import { registerIpc } from './app/ipc.js';
 import { TokenStore } from './app/secrets.js';
 import { DashboardService } from './app/service.js';
@@ -28,6 +29,7 @@ function createService(): DashboardService {
     scanFolders: (root, onProject, now) => scanRoot(root, { now, onProject }),
     notion: (token) => createNotionBackend(token),
     cache: createFileCache(join(data, 'snapshot.json')),
+    history: createHistoryStore(join(data, 'stage-history.json')),
     settings: createSettingsStore(join(data, 'settings.json')),
     tokens: new TokenStore(join(data, 'token.bin'), {
       isAvailable: () => safeStorage.isEncryptionAvailable(),

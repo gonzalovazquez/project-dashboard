@@ -73,3 +73,10 @@ export interface NotionInfo {
 export interface Project extends ScanResult {
   notion?: NotionInfo;
 }
+
+/** How many active tracked projects sat in each stage on a given day. One is recorded per day, per scan. */
+export interface StagePoint {
+  /** Local calendar date, YYYY-MM-DD. */
+  date: string;
+  counts: Record<Stage, number>;
+}

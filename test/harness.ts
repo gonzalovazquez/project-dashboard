@@ -24,6 +24,8 @@ export interface HarnessOptions {
   secureStorage?: boolean;
   scanDelay?: Promise<void>;
   appearanceLog?: string[];
+  /** Points the history store already holds. */
+  history?: import('../src/shared/types.js').StagePoint[];
 }
 
 /** A service wired to an in-memory Notion, a fake filesystem view and recording fakes. */
@@ -58,10 +60,16 @@ export async function harness(o: HarnessOptions = {}) {
     },
   };
   let backendsMade = 0;
+  let stored = [...(o.history ?? [])];
+  const recorded: Array<import('../src/shared/types.js').StagePoint> = [];
+  const history = {
+    load: async () => stored,
+    record: async (pt: import('../src/shared/types.js').StagePoint) => { recorded.push(pt); stored = [...stored.filter((x) => x.date !== pt.date), pt].sort((a, b) => a.date.localeCompare(b.date)); return stored; },
+  };
   const deps: ServiceDeps = {
     scanFolders: async (_root, onProject) => { await o.scanDelay; for (const s of o.scans ?? []) onProject(s); return o.scans ?? []; },
     notion: () => { backendsMade++; return { ...createGateway(fake.api), schemaStatus: async () => diffSchema(fake.dataSource) }; },
-    cache, settings: settingsStore, tokens: tokens as ServiceDeps['tokens'],
+    cache, history, settings: settingsStore, tokens: tokens as ServiceDeps['tokens'],
     stageSnapshotPath: stagePath,
     folderExists: async () => o.folderExists ?? true,
     openExternal: async (u) => { opened.push(u); },
@@ -72,7 +80,7 @@ export async function harness(o: HarnessOptions = {}) {
   const svc = new DashboardService(deps);
   svc.onUpdate((u) => updates.push(u));
   await svc.init();
-  return { svc, fake, updates, saved, opened, shown, stagePath, settings: () => settings, setToken: (t?: string) => { token = t; }, backends: () => backendsMade };
+  return { svc, fake, updates, saved, recorded, history: () => stored, opened, shown, stagePath, settings: () => settings, setToken: (t?: string) => { token = t; }, backends: () => backendsMade };
 }
 
 /** Three tracked projects, an untracked folder, and the matching Notion pages and checklist blocks. */

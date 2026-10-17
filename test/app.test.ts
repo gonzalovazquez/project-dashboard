@@ -100,7 +100,7 @@ describe('settings, cache and merge', () => {
 });
 
 describe('renderer state', () => {
-  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, tokenSource: 'none', secureStorageAvailable: true, appearance: 'system' }, ...over });
+  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, stageHistory: [], notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, tokenSource: 'none', secureStorageAvailable: true, appearance: 'system' }, ...over });
   it('adds and replaces projects as they stream in', () => {
     let s = applyUpdate(snap(), { kind: 'project', project: project({ name: 'b' }) })!;
     expect(s.projects.map((p) => p.name)).toEqual(['a', 'b']);

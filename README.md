@@ -13,7 +13,7 @@ npm install
 npm run dev                    # run the app with hot reload
 npm run build                  # build main, preload and renderer into out/
 npm run smoke                  # build, launch the real app under xvfb, check what it rendered (Linux)
-npm run ui-check               # build, serve the interface with sample data, run 43 checks and save light and dark screenshots
+npm run ui-check               # build, serve the interface with sample data, run the interface checks and save light and dark screenshots
 npm test                       # unit and integration tests
 npm run typecheck
 npm run scan                   # scan ~/Development and print a table
@@ -69,5 +69,6 @@ to use a different one, for example when experimenting.
 - [x] Notion client: gateway, schema dry run, stage change detection (awaiting review before the schema is applied)
 - [x] Electron shell, IPC, cache and settings (a plain list in the window; verified by a real launch)
 - [x] Overview screen: layout, sidebar, toolbar, headline, six tiles, highlights, sortable portfolio table, empty and loading states
-- [ ] Overview charts (Week 4), deep dive (Week 5), library, focus management and inbox (Week 6)
+- [x] Overview charts: forecast, commits, stages over time, progress against complexity, time in stage, activity and technology ([colors](docs/chart-colors.md))
+- [ ] Deep dive (Week 5), library, focus management and inbox (Week 6)
 - [ ] Weekly review flow, file watching, packaging
