@@ -20,8 +20,12 @@ export function runSmoke(service: DashboardService, win: BrowserWindow, outPrefi
     setTimeout(async () => {
       try {
         const page = await win.webContents.executeJavaScript(`({
-          rows: [...document.querySelectorAll('[data-project]')].map((r) => r.getAttribute('data-project')),
+          headline: document.querySelector('[data-testid=headline]')?.textContent ?? null,
           banner: document.querySelector('[data-banner]')?.textContent ?? null,
+          notionState: document.querySelector('[data-testid=notion-state]')?.textContent ?? null,
+          noTracked: !!document.querySelector('[data-state=no-tracked]'),
+          allProjects: [...document.querySelectorAll('.item')].find((e) => e.textContent.includes('All projects'))?.querySelector('.c')?.textContent ?? null,
+          inbox: [...document.querySelectorAll('.item')].find((e) => e.textContent.includes('Inbox'))?.querySelector('.c')?.textContent ?? null,
           bridgeKeys: Object.keys(window.dashboard ?? {}).sort(),
           nodeLeaked: typeof require !== 'undefined' || typeof process !== 'undefined',
           title: document.title,

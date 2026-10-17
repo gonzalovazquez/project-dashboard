@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { finishScore, flags, forecast, health, kill, park, progress, promote, queue, velocity } from '../src/main/focus/rules.js';
+import { finishScore, flags, forecast, health, kill, park, progress, promote, queue, velocity } from '../src/shared/rules.js';
 import type { Criterion } from '../src/shared/types.js';
 import { NOW, daysAgo, project } from './helpers.js';
 

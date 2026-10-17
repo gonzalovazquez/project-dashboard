@@ -1,4 +1,4 @@
-import { CHANNELS, fail, type LinkKind, type Result, type SettingsPatch, type SwapChoice } from '../../shared/ipc.js';
+import { APPEARANCES, CHANNELS, fail, type LinkKind, type Result, type SettingsPatch, type SwapChoice } from '../../shared/ipc.js';
 import type { DashboardService } from './service.js';
 
 export interface IpcMainLike {
@@ -44,6 +44,10 @@ function patch(v: unknown): SettingsPatch {
     const m: Record<string, string> = {};
     for (const [k, val] of Object.entries(o.overrides)) m[str(k, 'folder name', 255)] = str(val, 'page id', 100);
     out.overrides = m;
+  }
+  if (o.appearance !== undefined) {
+    if (typeof o.appearance !== 'string' || !(APPEARANCES as string[]).includes(o.appearance)) throw new BadInput('Appearance must be system, light or dark.');
+    out.appearance = o.appearance as SettingsPatch['appearance'];
   }
   return out;
 }

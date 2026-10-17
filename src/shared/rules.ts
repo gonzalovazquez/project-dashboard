@@ -1,4 +1,4 @@
-import { WIP_LIMIT, type Criterion, type Project } from '../../shared/types.js';
+import { WIP_LIMIT, type Criterion, type Project } from './types.js';
 
 const DAY = 86_400_000;
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * DAY);

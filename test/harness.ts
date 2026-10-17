@@ -23,6 +23,7 @@ export interface HarnessOptions {
   stageSnapshot?: StageSnapshot;
   secureStorage?: boolean;
   scanDelay?: Promise<void>;
+  appearanceLog?: string[];
 }
 
 /** A service wired to an in-memory Notion, a fake filesystem view and recording fakes. */
@@ -38,7 +39,7 @@ export async function harness(o: HarnessOptions = {}) {
   const stagePath = join(tmp(), 'stage.json');
   if (o.stageSnapshot) await saveSnapshot(stagePath, o.stageSnapshot);
 
-  let settings: StoredSettings = { developmentFolder: '/dev', overrides: o.overrides ?? {} };
+  let settings: StoredSettings = { developmentFolder: '/dev', overrides: o.overrides ?? {}, appearance: 'system' };
   const settingsStore: SettingsStore = {
     load: async () => settings,
     save: async (patch) => { settings = { ...settings, ...patch }; return settings; },
@@ -65,6 +66,7 @@ export async function harness(o: HarnessOptions = {}) {
     folderExists: async () => o.folderExists ?? true,
     openExternal: async (u) => { opened.push(u); },
     showInFolder: (p) => { shown.push(p); },
+    setAppearance: (a) => { o.appearanceLog?.push(a); },
     now: () => NOW,
   };
   const svc = new DashboardService(deps);

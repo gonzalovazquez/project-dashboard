@@ -7,7 +7,7 @@ import { registerIpc, type IpcMainLike } from '../src/main/app/ipc.js';
 import { matchNotion } from '../src/main/app/merge.js';
 import { SecureStorageUnavailable, TokenStore, type SecretBox } from '../src/main/app/secrets.js';
 import { createSettingsStore, defaultSettings, validatePatch } from '../src/main/app/settings.js';
-import { unpark } from '../src/main/focus/rules.js';
+import { unpark } from '../src/shared/rules.js';
 import { applyUpdate } from '../src/renderer/src/state.js';
 import { writeJsonAtomic } from '../src/main/app/jsonFile.js';
 import { board, calls, harness, scanned } from './harness.js';
@@ -67,12 +67,15 @@ describe('settings, cache and merge', () => {
     expect(await store.load()).toEqual(defaultSettings());
     await store.save({ developmentFolder: '/Users/g/Code' });
     await store.save({ overrides: { a: 'p1' } });
-    expect(await createSettingsStore(path).load()).toEqual({ developmentFolder: '/Users/g/Code', overrides: { a: 'p1' } });
+    expect(await createSettingsStore(path).load()).toEqual({ developmentFolder: '/Users/g/Code', overrides: { a: 'p1' }, appearance: 'system' });
+    await store.save({ appearance: 'dark' });
+    expect((await createSettingsStore(path).load()).appearance).toBe('dark');
   });
   it('rejects bad settings', async () => {
     expect(validatePatch({ developmentFolder: 'relative' })).toContain('absolute');
     expect(validatePatch({ overrides: { a: '' } })).toBeDefined();
-    expect(validatePatch({ developmentFolder: '/ok', overrides: { a: 'p' } })).toBeUndefined();
+    expect(validatePatch({ appearance: 'purple' as never })).toContain('Appearance');
+    expect(validatePatch({ developmentFolder: '/ok', overrides: { a: 'p' }, appearance: 'dark' })).toBeUndefined();
     await expect(createSettingsStore(join(tmp(), 's.json')).save({ developmentFolder: 'x' })).rejects.toThrow();
   });
   it('round-trips the cache and ignores other versions and corrupt files', async () => {
@@ -97,7 +100,7 @@ describe('settings, cache and merge', () => {
 });
 
 describe('renderer state', () => {
-  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, tokenSource: 'none', secureStorageAvailable: true }, ...over });
+  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, tokenSource: 'none', secureStorageAvailable: true, appearance: 'system' }, ...over });
   it('adds and replaces projects as they stream in', () => {
     let s = applyUpdate(snap(), { kind: 'project', project: project({ name: 'b' }) })!;
     expect(s.projects.map((p) => p.name)).toEqual(['a', 'b']);
@@ -154,7 +157,7 @@ describe('IPC registration', () => {
       [CHANNELS.park, 'beta', 'reason', 'next tuesday'],
       [CHANNELS.promote, 'delta', 'not an object'],
       [CHANNELS.promote, 'delta', { parkName: 5, reason: 'x' }],
-      [CHANNELS.saveSettings, 'nope'], [CHANNELS.saveSettings, { overrides: [1] }],
+      [CHANNELS.saveSettings, 'nope'], [CHANNELS.saveSettings, { overrides: [1] }], [CHANNELS.saveSettings, { appearance: 'purple' }],
       [CHANNELS.openLink, 'alpha', 'javascript'],
       [CHANNELS.setToken, 12345],
     ] as unknown[][]) {

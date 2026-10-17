@@ -1,9 +1,9 @@
 import type { NotionInfo, Project, ScanResult } from '../../shared/types.js';
 import {
   fail, ok,
-  type LinkKind, type NotionStatus, type ProjectUpdate, type PublicSettings, type Result, type SettingsPatch, type Snapshot, type SwapChoice,
+  type Appearance, type LinkKind, type NotionStatus, type ProjectUpdate, type PublicSettings, type Result, type SettingsPatch, type Snapshot, type SwapChoice,
 } from '../../shared/ipc.js';
-import { kill, park, promote, unpark } from '../focus/rules.js';
+import { kill, park, promote, unpark } from '../../shared/rules.js';
 import type { NotionBackend } from '../notion/backend.js';
 import type { PageChange } from '../notion/gateway.js';
 import { hasChanges } from '../notion/schema.js';
@@ -23,6 +23,8 @@ export interface ServiceDeps {
   folderExists(path: string): Promise<boolean>;
   openExternal(url: string): Promise<void>;
   showInFolder(path: string): void;
+  /** Applies the light, dark or system appearance to the window and native effects. */
+  setAppearance?(appearance: Appearance): void;
   now?: () => Date;
 }
 
@@ -60,6 +62,7 @@ export class DashboardService {
   async init(): Promise<void> {
     const cached = await this.d.cache.load();
     if (cached) { this.projects = cached.projects; this.scannedAt = cached.scannedAt; }
+    this.d.setAppearance?.((await this.d.settings.load()).appearance);
   }
 
   onUpdate(listener: (u: ProjectUpdate) => void): () => void {
@@ -71,7 +74,7 @@ export class DashboardService {
   async getSettings(): Promise<PublicSettings> {
     const s = await this.d.settings.load();
     const { source } = await this.d.tokens.get();
-    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable };
+    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable, appearance: s.appearance };
   }
 
   async getSnapshot(): Promise<Snapshot> {
@@ -290,7 +293,8 @@ export class DashboardService {
     const err = validatePatch(patch);
     if (err) return fail('invalid', err);
     if (patch.developmentFolder && !(await this.d.folderExists(patch.developmentFolder))) return fail('invalid', 'That folder does not exist.');
-    await this.d.settings.save(patch);
+    const saved = await this.d.settings.save(patch);
+    if (patch.appearance) this.d.setAppearance?.(saved.appearance);
     return ok();
   }
 

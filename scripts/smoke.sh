@@ -24,7 +24,11 @@ const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8").replace
 const expectKeys = ["getSettings","getSnapshot","kill","onProjectUpdate","openLink","park","promote","saveSettings","setCriterion","setNextAction","setToken","startScan","unpark"];
 const checks = {
   "no launch error": !r.error,
-  "both fixture projects rendered": JSON.stringify(r.rows) === JSON.stringify(["alpha","beta"]),
+  "sidebar counts both fixture folders": r.allProjects === "2" && r.inbox === "2",
+  "headline asks to connect Notion": typeof r.headline === "string" && r.headline.includes("Connect Notion"),
+  "banner explains how to connect": typeof r.banner === "string" && r.banner.includes("NOTION_TOKEN"),
+  "portfolio says nothing is tracked": r.noTracked === true,
+  "sidebar says Notion is not connected": typeof r.notionState === "string" && r.notionState.includes("not connected"),
   "bridge exposes exactly the intended methods": JSON.stringify(r.bridgeKeys) === JSON.stringify(expectKeys),
   "Node is not reachable from the page": r.nodeLeaked === false,
   "strict script policy": typeof r.csp === "string" && r.csp.includes("script-src '"'"'self'"'"';") && !/script-src[^;]*unsafe/.test(r.csp),

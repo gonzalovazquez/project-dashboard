@@ -1,10 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Snapshot } from '../../shared/ipc.js';
-import { applyUpdate, sortByName } from './state.js';
+import { Overview } from './components/Overview.js';
+import { Placeholder } from './components/Placeholder.js';
+import { Sidebar } from './components/Sidebar.js';
+import { Toolbar, type Range } from './components/Toolbar.js';
+import { OVERVIEW, PLACEHOLDER, type Route } from './route.js';
+import { applyUpdate } from './state.js';
+import { fmtDate } from './viewmodel/format.js';
+import { sidebarModel } from './viewmodel/portfolio.js';
 
-/** A plain list that proves the wiring. The real screens replace this. */
+function useDark(): boolean {
+  const query = '(prefers-color-scheme: dark)';
+  const [dark, setDark] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setDark(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return dark;
+}
+
 export function App() {
   const [snap, setSnap] = useState<Snapshot>();
+  const [route, setRoute] = useState<Route>(OVERVIEW);
+  const [range, setRange] = useState<Range>(12);
+  const dark = useDark();
 
   useEffect(() => {
     let alive = true;
@@ -14,31 +35,35 @@ export function App() {
     return () => { alive = false; off(); };
   }, []);
 
-  if (!snap) return <p className="muted">Loading…</p>;
-  const banner = snap.scanError ?? (snap.notion.state === 'connected' ? undefined : snap.notion.message);
+  // Time-based numbers are computed against the moment the data last changed, not on every render.
+  const now = useMemo(() => new Date(), [snap?.projects]);
+  const rescan = useCallback(() => void window.dashboard.startScan(), []);
+  const toggleAppearance = useCallback(() => void window.dashboard.saveSettings({ appearance: dark ? 'light' : 'dark' }), [dark]);
+
+  if (!snap) return <div className="loading" data-state="loading">Loading…</div>;
+
+  // A focus project that was parked or shipped no longer has a deep dive.
+  const gone = route.view === 'project' && !snap.projects.some((p) => p.name === route.name && p.notion?.focus);
+  const current: Route = gone ? OVERVIEW : route;
+  const model = sidebarModel(snap.projects, now);
+
+  const meta = current.view === 'overview'
+    ? { title: 'Overview', subtitle: `Week ending ${fmtDate(now)}, ${snap.projects.length} ${snap.projects.length === 1 ? 'folder' : 'folders'}` }
+    : current.view === 'project'
+      ? { title: snap.projects.find((p) => p.name === current.name)?.notion?.title ?? current.name, subtitle: `Deep dive · ${current.name}` }
+      : { title: PLACEHOLDER[current.view].title, subtitle: '' };
 
   return (
-    <main>
-      <header>
-        <h1>Project Dashboard</h1>
-        <button onClick={() => void window.dashboard.startScan()} disabled={snap.scanning}>{snap.scanning ? 'Scanning…' : 'Rescan'}</button>
-      </header>
-      {banner && <p className="banner" data-banner>{banner}</p>}
-      <p className="muted">{snap.projects.length} folders in {snap.settings.developmentFolder}{snap.scannedAt ? ` · scanned ${new Date(snap.scannedAt).toLocaleTimeString()}` : ''}</p>
-      <table>
-        <thead><tr><th>Project</th><th>Stage</th><th>Pulse</th><th>Complexity</th><th>Tech</th></tr></thead>
-        <tbody>
-          {sortByName(snap.projects).map((p) => (
-            <tr key={p.name} data-project={p.name}>
-              <td>{p.notion?.title ?? p.name}</td>
-              <td>{p.notion ? p.notion.stage : 'Not in Notion'}</td>
-              <td>{p.pulse.level}</td>
-              <td>{p.complexity.score} {p.complexity.level}</td>
-              <td>{p.tech.join(', ')}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </main>
+    <div className="app">
+      <Sidebar model={model} route={current} notion={snap.notion} scanning={snap.scanning} scannedAt={snap.scannedAt} folder={snap.settings.developmentFolder} onNavigate={setRoute} />
+      <div className="main">
+        <Toolbar title={meta.title} subtitle={meta.subtitle} range={current.view === 'overview' ? range : undefined} onRange={setRange} scanning={snap.scanning} onRescan={rescan} onToggleAppearance={toggleAppearance} />
+        <div className="content" data-route={current.view}>
+          {current.view === 'overview' && <Overview snap={snap} now={now} onOpenProject={(name) => setRoute({ view: 'project', name })} />}
+          {current.view === 'project' && <Placeholder view="project" detail={meta.title} />}
+          {current.view !== 'overview' && current.view !== 'project' && <Placeholder view={current.view} />}
+        </div>
+      </div>
+    </div>
   );
 }

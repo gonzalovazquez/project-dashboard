@@ -13,6 +13,7 @@ npm install
 npm run dev                    # run the app with hot reload
 npm run build                  # build main, preload and renderer into out/
 npm run smoke                  # build, launch the real app under xvfb, check what it rendered (Linux)
+npm run ui-check               # build, serve the interface with sample data, run 43 checks and save light and dark screenshots
 npm test                       # unit and integration tests
 npm run typecheck
 npm run scan                   # scan ~/Development and print a table
@@ -35,7 +36,7 @@ The main process owns scanning, Notion access and the cache. The interface reach
 | `getSnapshot`, `startScan`, `onProjectUpdate` | Read the current state, rescan, and receive each project as its scan finishes |
 | `setNextAction`, `setCriterion` | Write a next action or a checklist item to Notion |
 | `promote`, `park`, `kill`, `unpark` | Change focus and lifecycle. The pure rules run first; a rejected rule (a fourth focus project) writes nothing |
-| `getSettings`, `saveSettings`, `setToken` | Development folder, folder to page overrides, and the Notion token |
+| `getSettings`, `saveSettings`, `setToken` | Development folder, folder to page overrides, appearance (system, light or dark) and the Notion token |
 | `openLink` | Open a project's GitHub page, Notion page or folder. The interface names the project; the main process looks up the URL |
 
 Safety properties, each covered by a test or by `npm run smoke`:
@@ -55,11 +56,11 @@ to use a different one, for example when experimenting.
 | Piece | Where | What it does |
 |---|---|---|
 | Scanner | `src/main/scanner` | Git history, GitHub link, tech detection, complexity score, activity pulse |
-| Focus rules | `src/main/focus/rules.ts` | Progress, forecast, stall flags, health, closest-to-done ranking, the 3-project limit |
+| Focus rules | `src/shared/rules.ts` | Progress, forecast, stall flags, health, closest-to-done ranking, the 3-project limit |
 | Notion | `src/main/notion` | Gateway (read and write), schema setup, folder matching, page parsing, stage change detection |
 | App service | `src/main/app` | Scan, merge with Notion, cache, settings, token storage, change handling, IPC |
 | Shell | `src/main/index.ts`, `src/preload` | Window, security settings, bridge |
-| Interface | `src/renderer` | React. Currently a plain list that proves the wiring |
+| Interface | `src/renderer` | React. `viewmodel/` holds the tested logic (headline, tiles, highlights, table); `components/` only draws it |
 | Types | `src/shared/types.ts` | The data model shared by scanner, rules and UI |
 
 ## Status
@@ -67,5 +68,6 @@ to use a different one, for example when experimenting.
 - [x] Scanner, focus rules, Notion matching and parsing
 - [x] Notion client: gateway, schema dry run, stage change detection (awaiting review before the schema is applied)
 - [x] Electron shell, IPC, cache and settings (a plain list in the window; verified by a real launch)
-- [ ] React UI following the mockup
+- [x] Overview screen: layout, sidebar, toolbar, headline, six tiles, highlights, sortable portfolio table, empty and loading states
+- [ ] Overview charts (Week 4), deep dive (Week 5), library, focus management and inbox (Week 6)
 - [ ] Weekly review flow, file watching, packaging

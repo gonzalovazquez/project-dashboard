@@ -1,5 +1,8 @@
 import type { Project } from './types.js';
 
+export type Appearance = 'system' | 'light' | 'dark';
+export const APPEARANCES: Appearance[] = ['system', 'light', 'dark'];
+
 export type NotionState = 'not-configured' | 'connected' | 'error' | 'schema-missing';
 
 export interface NotionStatus {
@@ -15,6 +18,7 @@ export interface PublicSettings {
   overrides: Record<string, string>;
   tokenSource: 'env' | 'keychain' | 'none';
   secureStorageAvailable: boolean;
+  appearance: Appearance;
 }
 
 export interface Snapshot {
@@ -49,11 +53,11 @@ export type ProjectUpdate =
 export type LinkKind = 'github' | 'notion' | 'folder';
 
 export interface SwapChoice { parkName: string; reason: string; revisitOn?: string }
-export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string> }
+export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string>; appearance?: Appearance }
 
 /**
  * Everything the interface may call. Mutating calls run the pure rules in
- * src/main/focus/rules.ts first and write nothing when a rule rejects the change.
+ * src/shared/rules.ts first and write nothing when a rule rejects the change.
  */
 export interface DashboardApi {
   getSnapshot(): Promise<Snapshot>;

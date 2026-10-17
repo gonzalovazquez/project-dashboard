@@ -283,9 +283,20 @@ describe('links, settings and token', () => {
     expectFail(await h.svc.saveSettings({ developmentFolder: 'relative/path' }), 'invalid');
     expectFail(await h.svc.saveSettings({ overrides: { '': 'id' } }), 'invalid');
     expect((await h.svc.saveSettings({ developmentFolder: '/Users/g/Dev', overrides: { a: 'p1' } })).ok).toBe(true);
-    expect(h.settings()).toEqual({ developmentFolder: '/Users/g/Dev', overrides: { a: 'p1' } });
+    expect(h.settings()).toEqual({ developmentFolder: '/Users/g/Dev', overrides: { a: 'p1' }, appearance: 'system' });
     const missing = await harness({ ...board(), folderExists: false });
     expectFail(await missing.svc.saveSettings({ developmentFolder: '/nowhere' }), 'invalid');
+  });
+
+  it('applies the appearance when saved and on startup', async () => {
+    const log: string[] = [];
+    const h = await harness({ ...board(), appearanceLog: log });
+    expect(log).toEqual(['system']);
+    expect((await h.svc.saveSettings({ appearance: 'dark' })).ok).toBe(true);
+    expect(log).toEqual(['system', 'dark']);
+    expect((await h.svc.getSettings()).appearance).toBe('dark');
+    expectFail(await h.svc.saveSettings({ appearance: 'purple' as never }), 'invalid');
+    expect(log).toEqual(['system', 'dark']);
   });
 
   it('never returns the token in settings', async () => {
