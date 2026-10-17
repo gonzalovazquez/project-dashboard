@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Snapshot } from '../../shared/ipc.js';
+import { DeepDive } from './components/DeepDive.js';
 import { Overview } from './components/Overview.js';
 import { Placeholder } from './components/Placeholder.js';
 import { Sidebar } from './components/Sidebar.js';
@@ -62,7 +63,7 @@ export function App() {
         <Toolbar title={meta.title} subtitle={meta.subtitle} range={current.view === 'overview' ? range : undefined} onRange={setRange} scanning={snap.scanning} onRescan={rescan} onToggleAppearance={toggleAppearance} />
         <div className="content" data-route={current.view}>
           {current.view === 'overview' && <Overview snap={snap} now={now} range={range} onOpenProject={(name) => setRoute({ view: 'project', name })} />}
-          {current.view === 'project' && <Placeholder view="project" detail={meta.title} />}
+          {current.view === 'project' && <DeepDive snap={snap} project={snap.projects.find((p) => p.name === current.name)!} now={now} />}
           {current.view !== 'overview' && current.view !== 'project' && <Placeholder view={current.view} />}
         </div>
       </div>

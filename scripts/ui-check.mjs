@@ -35,11 +35,12 @@ const load = async (variant, scheme = 'light', size = { width: 1280, height: 150
   page.on('response', (r) => { if (r.status() >= 400 && !r.url().endsWith('/favicon.ico')) errors.push(`${r.status()} ${r.url()}`); });
   await page.addInitScript((s) => {
     window.__calls = [];
+    const rec = (n) => async (...a) => { window.__calls.push([n, ...a]); return { ok: true }; };
     const ok = async () => ({ ok: true });
     window.dashboard = {
       getSnapshot: async () => s, startScan: async () => { window.__calls.push('startScan'); },
       onProjectUpdate: () => () => {}, saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); return { ok: true }; },
-      getSettings: async () => s.settings, setNextAction: ok, setCriterion: ok, promote: ok, park: ok, kill: ok, unpark: ok, markShipped: ok, setToken: ok, openLink: ok,
+      getSettings: async () => s.settings, setNextAction: rec('setNextAction'), setCriterion: rec('setCriterion'), promote: ok, park: ok, kill: ok, unpark: ok, markShipped: rec('markShipped'), setToken: ok, openLink: rec('openLink'),
     };
   }, snap);
   await page.goto(base);
@@ -186,6 +187,50 @@ for (const scheme of ['light', 'dark']) {
     const dark = await page.evaluate(() => ['--series-1', '--series-2', '--series-3', '--stage-0', '--stage-3'].map((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim()));
     check('dark chart colors are the validated ones', JSON.stringify(dark) === JSON.stringify(['#3987e5', '#d95926', '#199e70', '#1c5cab', '#86b6ef']), dark.join(','));
   }
+  await page.close();
+}
+
+
+// ----- deep dive
+for (const scheme of ['light', 'dark']) {
+  const { page, errors } = await load('full', scheme);
+  await page.click('tbody tr[data-project="dark-factory"]');
+  await page.waitForSelector('[data-testid=dd-title]');
+  await page.screenshot({ path: join(shots, `deepdive-${scheme}.png`), fullPage: true });
+  if (scheme === 'light') {
+    check('deep dive has no console errors', errors.length === 0, errors.join('; '));
+    check('deep dive shows six tiles', (await page.$$('.kpi')).length === 6);
+    for (const id of ['burnup', 'heatmap', 'weekly']) check(`deep dive draws the ${id} chart`, (await page.$$(`[data-chart=${id}] svg.chart`)).length === 1);
+    check('health panel lists its four parts', (await page.$$('[data-chart=health] .hrow')).length === 4);
+    check('burnup draws a projection and a forecast band', (await page.$$('[data-projection]')).length === 1);
+    const crit = await page.$$('[data-section=criteria] input[type=checkbox]');
+    check('criteria render as checkboxes', crit.length > 0);
+    const before = await page.evaluate(() => window.__calls.length);
+    await crit[0].click();
+    const call = await page.evaluate(() => window.__calls.at(-1));
+    check('ticking a criterion calls the bridge with the block id', call[0] === 'setCriterion' && call[1] === 'dark-factory' && typeof call[2] === 'string' && typeof call[3] === 'boolean', JSON.stringify(call));
+    await page.fill('#next-action', 'Wire the export button');
+    await page.click('.next button');
+    check('saving the next action calls the bridge', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['setNextAction', 'dark-factory', 'Wire the export button']));
+    check('Mark shipped is disabled while criteria are open', await page.isDisabled('[data-action=ship]'));
+    await page.click('button:has-text("Folder")');
+    check('Folder button opens the folder', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['openLink', 'dark-factory', 'folder']));
+    const cell = await page.$('svg.heat rect[data-level]');
+    const box = await cell.boundingBox();
+    check('heatmap cells are at least 14px', box.width >= 14 && box.height >= 14);
+    const hits = await page.$$eval('[data-chart=burnup] .hit', (rs) => rs.map((r) => r.getBoundingClientRect().width));
+    check('burnup hit areas are at least 24px wide', hits.length === 12 && hits.every((w) => w >= 23.5), hits.join(','));
+    await page.hover('[data-chart=burnup] .hit:nth-of-type(6)');
+    check('hovering a burnup point shows a tooltip', (await page.$$('.tip')).length === 1);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    check('deep dive does not scroll sideways', !overflow);
+  }
+  await page.close();
+}
+{
+  const { page } = await load('full', 'light', { width: 1280, height: 1500 });
+  const name = await page.evaluate(async () => (await window.dashboard.getSnapshot()).projects.find((p) => p.notion?.focus && p.notion.criteria.length && p.notion.criteria.every((c) => c.done))?.name);
+  if (name) { await page.click(`tbody tr[data-project="${name}"]`); check('Mark shipped is enabled when every criterion is done', !(await page.isDisabled('[data-action=ship]'))); }
   await page.close();
 }
 

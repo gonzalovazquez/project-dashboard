@@ -39,7 +39,7 @@ function lastDays(weekly: number[]): number | null {
 function tracked(t: Tracked): Project {
   const last = t.lastActivityDays ?? lastDays(t.weekly);
   return project({
-    name: t.name, dirty: t.dirty ?? false, weekly: t.weekly, daily: spreadDaily(t.weekly, t.name), recentCommits: recent(spreadDaily(t.weekly, t.name), t.name), tech: t.tech,
+    name: t.name, dirty: t.dirty ?? false, weekly: t.weekly, daily: spreadDaily(t.weekly, t.name), recentCommits: recent(spreadDaily(t.weekly, t.name), t.name), tech: t.tech, languages: langs(t.tech),
     github: t.github === false ? undefined : `https://github.com/gonzalovazquez/${t.name}`,
     complexity: { score: t.complexity, level: t.complexity < 25 ? 'Low' : t.complexity < 60 ? 'Medium' : 'High', parts: [] },
     pulse: computePulse(t.weekly, t.dirty ?? false, last === null ? undefined : new Date(NOW.getTime() - last * DAY), NOW),
@@ -48,10 +48,19 @@ function tracked(t: Tracked): Project {
   });
 }
 
+/** A plausible language mix from a project's technology tags. */
+function langs(tech: string[]) {
+  const known = tech.filter((t) => ['TypeScript', 'Python', 'Swift', 'Go', 'Rust'].includes(t));
+  if (known.length === 0) return [];
+  const shares = [62, 24, 9, 5].slice(0, known.length);
+  const total = shares.reduce((a, b) => a + b, 0);
+  return [...known.map((name, i) => ({ name, share: Math.round((shares[i] / total) * 92) })), { name: "Other", share: 0 }].map((l, _i, all) => (l.name === "Other" ? { ...l, share: 100 - all.slice(0, -1).reduce((a, b) => a + b.share, 0) } : l));
+}
+
 function untracked(name: string, tech: string[], complexity: number, weekly: number[], github = true): Project {
   const last = lastDays(weekly);
   return project({
-    name, tech, weekly, daily: spreadDaily(weekly, name), recentCommits: recent(spreadDaily(weekly, name), name), github: github ? `https://github.com/gonzalovazquez/${name}` : undefined,
+    name, tech, weekly, daily: spreadDaily(weekly, name), recentCommits: recent(spreadDaily(weekly, name), name), languages: langs(tech), github: github ? `https://github.com/gonzalovazquez/${name}` : undefined,
     complexity: { score: complexity, level: complexity < 25 ? 'Low' : complexity < 60 ? 'Medium' : 'High', parts: [] },
     pulse: computePulse(weekly, false, last === null ? undefined : new Date(NOW.getTime() - last * DAY), NOW),
   });
