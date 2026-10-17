@@ -88,3 +88,6 @@ export function park(ps: Project[], name: string, reason: string, revisitOn?: st
   return patch(ps, name, { life: 'parked', focus: false, parkReason: reason, revisitOn });
 }
 export const kill = (ps: Project[], name: string) => patch(ps, name, { life: 'killed', focus: false });
+
+/** Brings a parked project back. It does not take a focus slot; promote it separately. */
+export const unpark = (ps: Project[], name: string) => patch(ps, name, { life: 'active', parkReason: undefined, revisitOn: undefined });

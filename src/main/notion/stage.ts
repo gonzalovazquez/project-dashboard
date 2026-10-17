@@ -1,6 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import type { Stage } from '../../shared/types.js';
+import { readJson, writeJsonAtomic } from '../app/jsonFile.js';
 
 /** What the app last saw for each page. Notion has no status history, so this is how a change is noticed. */
 export type StageSnapshot = Record<string, { stage: Stage; seenAt: string }>;
@@ -34,13 +33,7 @@ export function detectStageChanges(prev: StageSnapshot, pages: Array<{ pageId: s
 }
 
 export async function loadSnapshot(path: string): Promise<StageSnapshot> {
-  try { return JSON.parse(await readFile(path, 'utf8')) as StageSnapshot; } catch { return {}; }
+  return (await readJson<StageSnapshot>(path)) ?? {};
 }
 
-/** Writes to a temp file and renames, so a crash never leaves half a snapshot. */
-export async function saveSnapshot(path: string, snapshot: StageSnapshot): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.tmp`;
-  await writeFile(tmp, JSON.stringify(snapshot, null, 2));
-  await rename(tmp, path);
-}
+export const saveSnapshot = (path: string, snapshot: StageSnapshot) => writeJsonAtomic(path, snapshot);

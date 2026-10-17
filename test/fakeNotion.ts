@@ -54,3 +54,16 @@ export const page = (id: string, title: string, status: string, extra: Record<st
   id, url: `https://notion.so/${id}`, created_time: '2026-08-01T00:00:00Z',
   properties: { Idea: { title: [{ plain_text: title }] }, Status: { status: { name: status } }, ...extra },
 });
+
+const statusProp = () => ({ type: 'status', status: { options: ['Not started', 'In progress', 'Beta', 'General Available'].map((name) => ({ name })) } });
+/** The Brainstorming database as it is today: none of the properties the app adds. */
+export const liveSchema = () => ({ properties: { Idea: { type: 'title' }, Status: statusProp(), Priority: { type: 'select' }, Category: { type: 'multi_select' }, Type: { type: 'multi_select' } } });
+/** The database after `notion:setup --apply`. */
+export const completeSchema = () => ({
+  properties: {
+    ...liveSchema().properties,
+    Focus: { type: 'checkbox' },
+    Lifecycle: { type: 'select', select: { options: [{ id: '1', name: 'Active', color: 'green' }, { id: '2', name: 'Parked', color: 'yellow' }, { id: '3', name: 'Killed', color: 'red' }] } },
+    'Next action': { type: 'rich_text' }, 'Stage changed': { type: 'date' }, 'Park reason': { type: 'rich_text' }, 'Revisit on': { type: 'date' },
+  },
+});
