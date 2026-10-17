@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Snapshot } from '../../shared/ipc.js';
 import { DeepDive } from './components/DeepDive.js';
+import { Inbox, Parked, Shipped } from './components/Lists.js';
+import { Library } from './components/Library.js';
+import { QuickLook } from './components/QuickLook.js';
+import { NO_FILTERS, type LibraryFilters } from './viewmodel/library.js';
 import { Overview } from './components/Overview.js';
 import { Placeholder } from './components/Placeholder.js';
 import { Sidebar } from './components/Sidebar.js';
@@ -27,6 +31,8 @@ export function App() {
   const [snap, setSnap] = useState<Snapshot>();
   const [route, setRoute] = useState<Route>(OVERVIEW);
   const [range, setRange] = useState<Range>(12);
+  const [filters, setFilters] = useState<LibraryFilters>(NO_FILTERS);
+  const [look, setLook] = useState<string>();
   const dark = useDark();
 
   useEffect(() => {
@@ -47,12 +53,17 @@ export function App() {
   // A focus project that was parked or shipped no longer has a deep dive.
   const gone = route.view === 'project' && !snap.projects.some((p) => p.name === route.name && p.notion?.focus);
   const current: Route = gone ? OVERVIEW : route;
-  const model = sidebarModel(snap.projects, now);
+  const lookProject = look ? snap.projects.find((p) => p.name === look) : undefined;
+  const model = sidebarModel(snap.projects, now, 3, snap.settings.ignored);
 
   const meta = current.view === 'overview'
     ? { title: 'Overview', subtitle: `Week ending ${fmtDate(now)}, ${snap.projects.length} ${snap.projects.length === 1 ? 'folder' : 'folders'}` }
     : current.view === 'project'
       ? { title: snap.projects.find((p) => p.name === current.name)?.notion?.title ?? current.name, subtitle: `Deep dive · ${current.name}` }
+      : current.view === 'library' ? { title: 'All projects', subtitle: `${snap.projects.length} folders in ${snap.settings.developmentFolder}` }
+      : current.view === 'inbox' ? { title: 'Inbox', subtitle: 'Folders not in Notion yet' }
+      : current.view === 'parked' ? { title: 'Parked', subtitle: 'Set aside, with a date to revisit' }
+      : current.view === 'shipped' ? { title: 'Shipped', subtitle: 'Reached General Available' }
       : { title: PLACEHOLDER[current.view].title, subtitle: '' };
 
   return (
@@ -64,10 +75,15 @@ export function App() {
         <div className="content" data-route={current.view}>
           {current.view === 'overview' && <Overview snap={snap} now={now} range={range} onOpenProject={(name) => setRoute({ view: 'project', name })} />}
           {current.view === 'project' && <DeepDive snap={snap} project={snap.projects.find((p) => p.name === current.name)!} now={now} />}
-          {current.view !== 'overview' && current.view !== 'project' && <Placeholder view={current.view} />}
+          {current.view === 'library' && <Library snap={snap} filters={filters} onFilters={setFilters} onQuickLook={setLook} />}
+          {current.view === 'inbox' && <Inbox snap={snap} onQuickLook={setLook} />}
+          {current.view === 'parked' && <Parked snap={snap} now={now} onQuickLook={setLook} />}
+          {current.view === 'shipped' && <Shipped snap={snap} now={now} onQuickLook={setLook} />}
+          {current.view === 'review' && <Placeholder view="review" />}
         </div>
       </div>
     </div>
+    {lookProject && <QuickLook snap={snap} project={lookProject} now={now} onClose={() => setLook(undefined)} onOpenDeepDive={(name) => setRoute({ view: 'project', name })} />}
     </TipProvider>
   );
 }

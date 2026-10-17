@@ -45,6 +45,10 @@ function patch(v: unknown): SettingsPatch {
     for (const [k, val] of Object.entries(o.overrides)) m[str(k, 'folder name', 255)] = str(val, 'page id', 100);
     out.overrides = m;
   }
+  if (o.ignored !== undefined) {
+    if (!Array.isArray(o.ignored)) throw new BadInput('Ignored folders must be a list.');
+    out.ignored = o.ignored.map((n) => str(n, 'folder name', 255));
+  }
   if (o.appearance !== undefined) {
     if (typeof o.appearance !== 'string' || !(APPEARANCES as string[]).includes(o.appearance)) throw new BadInput('Appearance must be system, light or dark.');
     out.appearance = o.appearance as SettingsPatch['appearance'];
@@ -78,6 +82,9 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
   handle(CHANNELS.kill, (name) => svc.kill(str(name, 'name', 255)));
   handle(CHANNELS.unpark, (name) => svc.unpark(str(name, 'name', 255)));
   handle(CHANNELS.markShipped, (name) => svc.markShipped(str(name, 'name', 255)));
+  handle(CHANNELS.addToNotion, (name) => svc.addToNotion(str(name, 'name', 255)));
+  handle(CHANNELS.ignoreFolder, (name, ignored) => svc.ignoreFolder(str(name, 'name', 255), bool(ignored, 'ignored')));
+  handle(CHANNELS.linkFolder, (name, id) => svc.linkFolder(str(name, 'name', 255), str(id, 'pageId', 100)));
   handle(CHANNELS.getSettings, () => svc.getSettings());
   handle(CHANNELS.saveSettings, (p) => svc.saveSettings(patch(p)));
   handle(CHANNELS.setToken, (t) => svc.setToken(t === null ? null : str(t, 'token', 500)));

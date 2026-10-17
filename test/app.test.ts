@@ -67,7 +67,7 @@ describe('settings, cache and merge', () => {
     expect(await store.load()).toEqual(defaultSettings());
     await store.save({ developmentFolder: '/Users/g/Code' });
     await store.save({ overrides: { a: 'p1' } });
-    expect(await createSettingsStore(path).load()).toEqual({ developmentFolder: '/Users/g/Code', overrides: { a: 'p1' }, appearance: 'system' });
+    expect(await createSettingsStore(path).load()).toEqual({ developmentFolder: '/Users/g/Code', overrides: { a: 'p1' }, ignored: [], appearance: 'system' });
     await store.save({ appearance: 'dark' });
     expect((await createSettingsStore(path).load()).appearance).toBe('dark');
   });
@@ -100,7 +100,7 @@ describe('settings, cache and merge', () => {
 });
 
 describe('renderer state', () => {
-  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, stageHistory: [], notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, tokenSource: 'none', secureStorageAvailable: true, appearance: 'system' }, ...over });
+  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, stageHistory: [], unlinkedPages: [], notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, ignored: [], tokenSource: 'none', secureStorageAvailable: true, appearance: 'system' }, ...over });
   it('adds and replaces projects as they stream in', () => {
     let s = applyUpdate(snap(), { kind: 'project', project: project({ name: 'b' }) })!;
     expect(s.projects.map((p) => p.name)).toEqual(['a', 'b']);
@@ -160,6 +160,8 @@ describe('IPC registration', () => {
       [CHANNELS.saveSettings, 'nope'], [CHANNELS.saveSettings, { overrides: [1] }], [CHANNELS.saveSettings, { appearance: 'purple' }],
       [CHANNELS.openLink, 'alpha', 'javascript'],
       [CHANNELS.setToken, 12345],
+      [CHANNELS.addToNotion, 5], [CHANNELS.ignoreFolder, 'loose', 'yes'], [CHANNELS.ignoreFolder, 7, true], [CHANNELS.linkFolder, 'loose', ''], [CHANNELS.linkFolder, 'loose'],
+      [CHANNELS.saveSettings, { ignored: 'loose' }], [CHANNELS.saveSettings, { ignored: [3] }],
     ] as unknown[][]) {
       const r = await call(channel as string, ...args);
       expect(r, `${channel} ${JSON.stringify(args)}`).toMatchObject({ ok: false, error: { code: 'invalid' } });

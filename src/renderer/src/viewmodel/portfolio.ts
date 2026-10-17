@@ -98,14 +98,14 @@ export interface SidebarModel {
   counts: { all: number; inbox: number; parked: number; shipped: number; flagged: number };
 }
 
-export function sidebarModel(projects: Project[], now: Date, limit = 3): SidebarModel {
+export function sidebarModel(projects: Project[], now: Date, limit = 3, ignored: string[] = []): SidebarModel {
   const focus = projects.filter((p) => p.notion?.focus && p.notion.life === 'active');
   return {
     focus: focus.map((p) => ({ name: p.name, title: p.notion!.title, progress: progress(p) ?? 0, stage: p.notion!.stage })),
     openSlots: Math.max(0, limit - focus.length),
     counts: {
       all: projects.length,
-      inbox: projects.filter((p) => !p.notion).length,
+      inbox: projects.filter((p) => !p.notion && !ignored.includes(p.name)).length,
       parked: projects.filter((p) => p.notion?.life === 'parked').length,
       shipped: projects.filter((p) => p.notion?.life === 'active' && p.notion.stage === 'General Available').length,
       flagged: projects.filter((p) => flags(p, now).length > 0).length,

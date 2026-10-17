@@ -7,24 +7,8 @@ import { Pill } from './Bits.js';
 import { KpiTile } from './Overview.js';
 import { BurnupChart, HealthPanel, Heatmap, LanguageBar, WeekChart } from './deep/DeepCharts.js';
 import { STAGE_COLOR } from '../tokens.js';
-
-type Notice = { tone: 'bad' | 'good'; text: string };
-
-/** Runs an action and turns a refused or failed result into a message the person can read. */
-function useAction() {
-  const [notice, setNotice] = useState<Notice>();
-  const [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<{ ok: boolean; error?: { message: string } }>, success?: string) => {
-    setBusy(true);
-    try {
-      const r = await fn();
-      setNotice(r.ok ? (success ? { tone: 'good', text: success } : undefined) : { tone: 'bad', text: r.error?.message ?? 'That did not work.' });
-    } catch (e) {
-      setNotice({ tone: 'bad', text: e instanceof Error ? e.message : 'That did not work.' });
-    } finally { setBusy(false); }
-  };
-  return { notice, busy, run, clear: () => setNotice(undefined) };
-}
+import { NoticeBar, useAction } from './actions.js';
+import { ProjectActions } from './ProjectActions.js';
 
 function NextAction({ p, can, onSave }: { p: Project; can: boolean; onSave: (t: string | null) => void }) {
   const saved = p.notion?.nextAction ?? '';
@@ -55,7 +39,7 @@ export function DeepDive({ snap, project, now }: { snap: Snapshot; project: Proj
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try { await navigator.clipboard.writeText(kickoffPrompt(project, now)); setCopied(true); setTimeout(() => setCopied(false), 1800); }
-    catch { act.run(async () => ({ ok: false, error: { message: 'Could not copy to the clipboard.' } })); }
+    catch { act.fail('Could not copy to the clipboard.'); }
   };
   const api = window.dashboard;
 
@@ -63,7 +47,7 @@ export function DeepDive({ snap, project, now }: { snap: Snapshot; project: Proj
     <>
       {notices.map((b) => <p key={b.id} className={`banner ${b.tone}`} data-banner>{b.text}</p>)}
       {access.reason && <p className="banner warn" data-banner="write-access">{access.reason}</p>}
-      {act.notice && <p className={`banner ${act.notice.tone === 'good' ? 'info' : 'bad'}`} role="status" data-notice={act.notice.tone}>{act.notice.text}</p>}
+      <NoticeBar notice={act.notice} />
       <div className="dd-head">
         <div>
           <div className="eye">Deep dive</div>
@@ -74,6 +58,7 @@ export function DeepDive({ snap, project, now }: { snap: Snapshot; project: Proj
           </div>
         </div>
         <div className="dd-actions">
+          <ProjectActions projects={snap.projects} project={project} now={now} canWrite={canWrite} why={access.reason} />
           {project.github && <button className="btn" onClick={() => void api.openLink(project.name, 'github')}>GitHub</button>}
           {n && <button className="btn" onClick={() => void api.openLink(project.name, 'notion')}>Notion</button>}
           <button className="btn" onClick={() => void api.openLink(project.name, 'folder')}>Folder</button>

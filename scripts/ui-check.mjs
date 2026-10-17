@@ -40,7 +40,7 @@ const load = async (variant, scheme = 'light', size = { width: 1280, height: 150
     window.dashboard = {
       getSnapshot: async () => s, startScan: async () => { window.__calls.push('startScan'); },
       onProjectUpdate: () => () => {}, saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); return { ok: true }; },
-      getSettings: async () => s.settings, setNextAction: rec('setNextAction'), setCriterion: rec('setCriterion'), promote: ok, park: ok, kill: ok, unpark: ok, markShipped: rec('markShipped'), setToken: ok, openLink: rec('openLink'),
+      getSettings: async () => s.settings, setNextAction: rec('setNextAction'), setCriterion: rec('setCriterion'), promote: rec('promote'), park: rec('park'), kill: rec('kill'), unpark: rec('unpark'), addToNotion: rec('addToNotion'), ignoreFolder: rec('ignoreFolder'), linkFolder: rec('linkFolder'), markShipped: rec('markShipped'), setToken: ok, openLink: rec('openLink'),
     };
   }, snap);
   await page.goto(base);
@@ -231,6 +231,104 @@ for (const scheme of ['light', 'dark']) {
   const { page } = await load('full', 'light', { width: 1280, height: 1500 });
   const name = await page.evaluate(async () => (await window.dashboard.getSnapshot()).projects.find((p) => p.notion?.focus && p.notion.criteria.length && p.notion.criteria.every((c) => c.done))?.name);
   if (name) { await page.click(`tbody tr[data-project="${name}"]`); check('Mark shipped is enabled when every criterion is done', !(await page.isDisabled('[data-action=ship]'))); }
+  await page.close();
+}
+
+// ----- week 6: library, inbox, parked, shipped, sheets
+for (const scheme of ['light', 'dark']) {
+  const { page, errors } = await load('full', scheme);
+  const lastCall = () => page.evaluate(() => window.__calls.at(-1));
+  await page.click('.item:has-text("All projects")');
+  await page.waitForSelector('[data-view=library]');
+  await page.screenshot({ path: join(shots, `library-${scheme}.png`), fullPage: true });
+  if (scheme === 'light') {
+    const total = (await page.$$('[data-view=library] tbody tr')).length;
+    check('library lists every folder', total === 21, String(total));
+    await page.selectOption('[data-filter=state]', 'untracked');
+    const untracked = (await page.$$('[data-view=library] tbody tr')).length;
+    check('state filter narrows the list', untracked > 0 && untracked < total && (await page.textContent('[data-testid=lib-count]')).startsWith(`${untracked} of 21`));
+    await page.selectOption('[data-filter=technology]', { index: 1 });
+    const both = (await page.$$('[data-view=library] tbody tr')).length;
+    check('filters combine', both <= untracked);
+    await page.click('[data-action=clear-filters]');
+    check('clear filters restores the list', (await page.$$('[data-view=library] tbody tr')).length === 21 && (await page.$('[data-action=clear-filters]')) === null);
+    await page.fill('[aria-label="Search projects"]', 'zzzzqq');
+    check('no match says so', (await page.getAttribute('[data-state=no-match]', 'data-state')) === 'no-match');
+    await page.fill('[aria-label="Search projects"]', 'dark');
+    check('search finds a project', (await page.$$('[data-view=library] tbody tr[data-project="dark-factory"]')).length === 1);
+    await page.fill('[aria-label="Search projects"]', '');
+
+    // quick look
+    await page.click('tbody tr[data-project="dark-factory"]');
+    check('clicking a row opens a quick look', (await page.$$('[data-sheet=quick-look]')).length === 1);
+    check('quick look of a focus project links to its deep dive', (await page.$$('[data-sheet=quick-look] button:has-text("Open deep dive")')).length === 1);
+    await page.keyboard.press('Escape');
+    check('Escape closes the sheet', (await page.$$('[data-sheet]')).length === 0);
+    check('focus returns to the row', await page.evaluate(() => document.activeElement?.getAttribute('data-project') === 'dark-factory'));
+    await page.click('tbody tr[data-project="dark-factory"]');
+    await page.click('button:has-text("Open deep dive")');
+    check('Open deep dive navigates', (await page.getAttribute('.content', 'data-route')) === 'project');
+
+    // park from the deep dive
+    await page.click('[data-action=park]');
+    check('park opens a sheet', (await page.$$('[data-sheet=park]')).length === 1);
+    check('park needs a reason', await page.isDisabled('[data-sheet=park] [data-confirm]'));
+    await page.fill('[data-field=reason]', '  Waiting on API access ');
+    const revisit = await page.inputValue('[data-field=revisit]');
+    check('revisit date defaults to a date', /^\d{4}-\d{2}-\d{2}$/.test(revisit));
+    await page.click('[data-sheet=park] [data-confirm]');
+    const c = await lastCall();
+    check('park calls the bridge with the trimmed reason and the date', c[0] === 'park' && c[1] === 'dark-factory' && c[2] === 'Waiting on API access' && c[3] === revisit, JSON.stringify(c));
+    check('the sheet closes after a successful park', (await page.$$('[data-sheet]')).length === 0);
+    await page.click('[data-action=kill]');
+    await page.screenshot({ path: join(shots, 'kill-sheet.png') });
+    await page.keyboard.press('Escape');
+    check('cancelling kill calls nothing', (await lastCall())[0] === 'park');
+    await page.click('[data-action=kill]');
+    await page.click('[data-sheet=kill] [data-confirm]');
+    check('kill calls the bridge', JSON.stringify(await lastCall()) === JSON.stringify(['kill', 'dark-factory']));
+
+    // swap in a project when focus is full
+    await page.click('.item:has-text("All projects")');
+    await page.fill('[aria-label="Search projects"]', 'flockchat');
+    await page.click('tbody tr:first-child');
+    await page.click('[data-sheet=quick-look] [data-action=promote]');
+    check('promote with full focus asks which project to park', (await page.$$('[data-sheet=promote] select[data-field=park]')).length === 1);
+    check('swap needs a reason', await page.isDisabled('[data-sheet=promote] [data-confirm]'));
+    await page.screenshot({ path: join(shots, 'swap-sheet.png') });
+    await page.fill('[data-sheet=promote] [data-field=reason]', 'Lost momentum');
+    await page.click('[data-sheet=promote] [data-confirm]');
+    const pc = await lastCall();
+    check('swap sends who to park, why and when', pc[0] === 'promote' && typeof pc[1] === 'string' && pc[2] && pc[2].reason === 'Lost momentum' && typeof pc[2].parkName === 'string' && /^\d{4}/.test(pc[2].revisitOn), JSON.stringify(pc));
+  }
+  await page.close();
+}
+{
+  const { page, errors } = await load('full', 'light');
+  await page.click('.item:has-text("Inbox")');
+  await page.waitForSelector('[data-view=inbox]');
+  await page.screenshot({ path: join(shots, 'inbox.png'), fullPage: true });
+  const rows = await page.$$('[data-view=inbox] tbody tr');
+  check('inbox lists folders without a page', rows.length > 0);
+  check('ignored folders are listed apart', (await page.$$('[data-view=ignored] tbody tr')).length === 1);
+  const name = await rows[0].getAttribute('data-inbox');
+  await page.click(`[data-inbox="${name}"] [data-action=add]`);
+  check('Add to Notion calls the bridge', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['addToNotion', name]));
+  await page.selectOption(`[data-inbox="${name}"] [data-action=link]`, 'u1');
+  check('linking sends the folder and page id', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['linkFolder', name, 'u1']));
+  await page.click(`[data-inbox="${name}"] [data-action=ignore]`);
+  check('Ignore calls the bridge', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['ignoreFolder', name, true]));
+  await page.click('[data-view=ignored] [data-action=unignore]');
+  check('Restore calls the bridge', (await page.evaluate(() => window.__calls.at(-1)))[2] === false);
+  check('sidebar inbox count excludes ignored folders', Number(await page.textContent('.item:has-text("Inbox") .c')) === rows.length);
+  await page.click('.item:has-text("Parked")');
+  await page.waitForSelector('[data-view=parked]');
+  await page.screenshot({ path: join(shots, 'parked.png'), fullPage: true });
+  check('parked shows a reason', (await page.textContent('[data-view=parked]')).length > 0);
+  await page.click('.item:has-text("Shipped")');
+  await page.waitForSelector('[data-view=shipped]');
+  check('shipped screen renders its list or its empty state', (await page.$$('[data-shipped], [data-state=shipped-empty]')).length > 0);
+  check('week 6 screens have no console errors', errors.length === 0, errors.join('; '));
   await page.close();
 }
 

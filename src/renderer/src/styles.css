@@ -230,3 +230,28 @@ svg.chart g.col:hover > path, svg.chart g.col:hover > rect:not(.hit) { filter: b
 .hrow b { text-align: right; }
 .risks { margin: 4px 0 0; padding-left: 18px; }
 svg.heat rect { cursor: default; }
+
+/* ---- sheets and forms ---- */
+.scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.32); display: flex; align-items: flex-start; justify-content: center; padding-top: 14vh; z-index: 50; }
+.sheet { max-width: calc(100vw - 32px); background: var(--card); border-radius: 12px; box-shadow: 0 0 0 0.5px var(--sep), 0 18px 50px rgba(0, 0, 0, 0.35); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; max-height: 76vh; overflow: auto; }
+.sheet h2 { font: 600 15px var(--font); margin: 0; }
+.sheet p { margin: 0 0 6px; }
+.sheet form { display: flex; flex-direction: column; gap: 10px; }
+.sheet-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.fld { display: flex; flex-direction: column; gap: 4px; font-weight: 500; font-size: 12.5px; }
+.fld textarea, .fld input, .fld select, .field { font: inherit; font-weight: 400; color: var(--label); background: var(--bg, var(--card)); border: 0; border-radius: 6px; padding: 6px 9px; box-shadow: 0 0 0 0.5px var(--sep), inset 0 0.5px 1px rgba(0, 0, 0, 0.08); resize: vertical; }
+.btn.danger { color: var(--red); }
+.btn.danger.solid { background: var(--red); color: #fff; }
+.btn[disabled].primary, .btn.primary[disabled] { opacity: 0.45; }
+.pa { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.flt { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--label2); }
+.flt select { font: inherit; font-size: 12.5px; color: var(--label); background: var(--card); border: 0; border-radius: 6px; padding: 4px 8px; box-shadow: 0 0 0 0.5px var(--sep); }
+.field.search { min-width: 220px; }
+button.link { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.link:hover b { color: var(--blue); }
+.stk { display: inline-flex; gap: 8px; align-items: center; }
+.sheet-foot.spread { justify-content: space-between; align-items: center; flex-wrap: wrap; }
+th.r, td.r { text-align: right; }
+.scrim[hidden] { display: none; }

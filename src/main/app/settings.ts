@@ -3,9 +3,9 @@ import { isAbsolute, join } from 'node:path';
 import { APPEARANCES, type Appearance, type SettingsPatch } from '../../shared/ipc.js';
 import { readJson, writeJsonAtomic } from './jsonFile.js';
 
-export interface StoredSettings { developmentFolder: string; overrides: Record<string, string>; appearance: Appearance }
+export interface StoredSettings { developmentFolder: string; overrides: Record<string, string>; ignored: string[]; appearance: Appearance }
 
-export const defaultSettings = (): StoredSettings => ({ developmentFolder: join(homedir(), 'Development'), overrides: {}, appearance: 'system' });
+export const defaultSettings = (): StoredSettings => ({ developmentFolder: join(homedir(), 'Development'), overrides: {}, ignored: [], appearance: 'system' });
 
 export interface SettingsStore {
   load(): Promise<StoredSettings>;
@@ -19,6 +19,7 @@ export function validatePatch(patch: SettingsPatch): string | undefined {
     if (typeof patch.overrides !== 'object' || patch.overrides === null || Array.isArray(patch.overrides)) return 'Overrides must be a map of folder name to page id.';
     for (const [k, v] of Object.entries(patch.overrides)) if (!k || typeof v !== 'string' || !v) return 'Each override needs a folder name and a page id.';
   }
+  if (patch.ignored !== undefined && (!Array.isArray(patch.ignored) || patch.ignored.some((n) => typeof n !== 'string' || !n))) return 'Ignored folders must be a list of folder names.';
   if (patch.appearance !== undefined && !APPEARANCES.includes(patch.appearance)) return 'Appearance must be system, light or dark.';
   return undefined;
 }
@@ -30,6 +31,7 @@ export function createSettingsStore(path: string): SettingsStore {
     return {
       developmentFolder: stored?.developmentFolder ?? d.developmentFolder,
       overrides: stored?.overrides ?? {},
+      ignored: Array.isArray(stored?.ignored) ? stored!.ignored.filter((n) => typeof n === 'string') : [],
       appearance: stored?.appearance && APPEARANCES.includes(stored.appearance) ? stored.appearance : d.appearance,
     };
   };

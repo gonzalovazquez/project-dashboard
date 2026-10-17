@@ -16,10 +16,15 @@ export interface NotionStatus {
 export interface PublicSettings {
   developmentFolder: string;
   overrides: Record<string, string>;
+  /** Folders hidden from the Inbox. */
+  ignored: string[];
   tokenSource: 'env' | 'keychain' | 'none';
   secureStorageAvailable: boolean;
   appearance: Appearance;
 }
+
+/** A Notion page that no folder is paired with, offered when linking a folder by hand. */
+export interface UnlinkedPage { id: string; title: string; url: string; stage: string }
 
 export interface Snapshot {
   projects: Project[];
@@ -30,6 +35,8 @@ export interface Snapshot {
   settings: PublicSettings;
   /** Daily record of projects per stage, oldest first. Starts when the app first sees Notion. */
   stageHistory: StagePoint[];
+  /** Pages in the database that no folder matched, so an unmatched folder can be linked to one. */
+  unlinkedPages: UnlinkedPage[];
 }
 
 export type ErrorCode =
@@ -55,7 +62,7 @@ export type ProjectUpdate =
 export type LinkKind = 'github' | 'notion' | 'folder';
 
 export interface SwapChoice { parkName: string; reason: string; revisitOn?: string }
-export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string>; appearance?: Appearance }
+export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string>; ignored?: string[]; appearance?: Appearance }
 
 /**
  * Everything the interface may call. Mutating calls run the pure rules in
@@ -73,6 +80,12 @@ export interface DashboardApi {
   unpark(name: string): Promise<Result>;
   /** Moves a project whose criteria are all done to General Available and frees its focus slot. */
   markShipped(name: string): Promise<Result>;
+  /** Creates a Notion page titled with the folder name, in Not started, and pairs the folder with it. */
+  addToNotion(name: string): Promise<Result>;
+  /** Hides a folder from the Inbox, or brings it back. */
+  ignoreFolder(name: string, ignored: boolean): Promise<Result>;
+  /** Pairs a folder with an existing Notion page that no folder matched. */
+  linkFolder(name: string, pageId: string): Promise<Result>;
   getSettings(): Promise<PublicSettings>;
   saveSettings(patch: SettingsPatch): Promise<Result>;
   setToken(token: string | null): Promise<Result>;
@@ -90,6 +103,9 @@ export const CHANNELS = {
   kill: 'dashboard:kill',
   unpark: 'dashboard:unpark',
   markShipped: 'dashboard:markShipped',
+  addToNotion: 'dashboard:addToNotion',
+  ignoreFolder: 'dashboard:ignoreFolder',
+  linkFolder: 'dashboard:linkFolder',
   getSettings: 'dashboard:getSettings',
   saveSettings: 'dashboard:saveSettings',
   setToken: 'dashboard:setToken',

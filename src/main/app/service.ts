@@ -1,7 +1,7 @@
 import type { NotionInfo, Project, ScanResult, StagePoint } from '../../shared/types.js';
 import {
   fail, ok,
-  type Appearance, type LinkKind, type NotionStatus, type ProjectUpdate, type PublicSettings, type Result, type SettingsPatch, type Snapshot, type SwapChoice,
+  type Appearance, type LinkKind, type NotionStatus, type ProjectUpdate, type PublicSettings, type Result, type SettingsPatch, type Snapshot, type SwapChoice, type UnlinkedPage,
 } from '../../shared/ipc.js';
 import { kill, park, promote, ship, unpark } from '../../shared/rules.js';
 import type { NotionBackend } from '../notion/backend.js';
@@ -56,6 +56,7 @@ export class DashboardService {
   private scanError?: string;
   private notion: NotionStatus = { state: 'not-configured' };
   private stageHistory: StagePoint[] = [];
+  private unlinked: Array<UnlinkedPage & { info: NotionInfo }> = [];
   private running?: Promise<void>;
   private listeners = new Set<(u: ProjectUpdate) => void>();
   private backend?: { token: string; api: NotionBackend };
@@ -81,11 +82,11 @@ export class DashboardService {
   async getSettings(): Promise<PublicSettings> {
     const s = await this.d.settings.load();
     const { source } = await this.d.tokens.get();
-    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable, appearance: s.appearance };
+    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable, appearance: s.appearance, ignored: s.ignored };
   }
 
   async getSnapshot(): Promise<Snapshot> {
-    return { projects: this.projects, scannedAt: this.scannedAt, scanning: this.scanning, scanError: this.scanError, notion: this.notion, settings: await this.getSettings(), stageHistory: this.stageHistory };
+    return { projects: this.projects, scannedAt: this.scannedAt, scanning: this.scanning, scanError: this.scanError, notion: this.notion, settings: await this.getSettings(), stageHistory: this.stageHistory, unlinkedPages: this.unlinked.map(({ info: _info, ...u }) => u) };
   }
 
   private getBackend(token: string): NotionBackend {
@@ -140,6 +141,8 @@ export class DashboardService {
         this.notion = { state: 'error', message: `Could not reach Notion: ${pulled && 'error' in pulled ? pulled.error : 'unknown error'}. Showing the last known data.` };
       } else {
         infoByFolder = matchNotion(scans.map((s) => s.name), pulled.loaded, settings.overrides).infoByFolder;
+        const matched = new Set([...infoByFolder.values()].map((i) => i.pageId));
+        this.unlinked = pulled.loaded.flatMap((l) => (l.info && !matched.has(l.page.id) ? [{ id: l.page.id, title: l.info.title, url: l.info.url, stage: l.info.stage, info: l.info }] : []));
         const schemaMissing = hasChanges(pulled.diff);
         this.notion = schemaMissing
           ? { state: 'schema-missing', message: 'The Notion database is missing properties the app needs. Run npm run notion:setup to review and add them.', syncedAt: now.toISOString(), pages: pulled.loaded.length }
@@ -320,6 +323,49 @@ export class DashboardService {
     this.upsert(p);
     await this.d.cache.save({ scannedAt: this.scannedAt, projects: this.projects });
     this.emit({ kind: 'project', project: p });
+  }
+
+  // ---------- inbox
+
+  /** Creates a page for a folder that has none, and pairs the two so the next scan cannot lose the link. */
+  async addToNotion(name: string): Promise<Result> {
+    const busy = this.busy();
+    if (busy) return busy;
+    const p = this.projects.find((x) => x.name === name);
+    if (!p) return fail('not-found', `No project named ${name}.`);
+    if (p.notion) return fail('not-eligible', `${name} already has a Notion page.`);
+    const b = await this.backendFor(false);
+    if ('error' in b) return b.error;
+    let created: { pageId: string; url: string };
+    try { created = await b.backend.createPage(name); }
+    catch (err) { return fail('notion-write-failed', `Could not create the Notion page: ${msg(err)}`); }
+    const info: NotionInfo = { pageId: created.pageId, url: created.url, title: name, stage: 'Not started', criteria: [], focus: false, life: 'active' };
+    try { await this.d.settings.save({ overrides: { ...(await this.d.settings.load()).overrides, [name]: created.pageId } }); }
+    catch (err) { await this.replace({ ...p, notion: info }); return fail('internal', `The page was created, but the link could not be saved: ${msg(err)}. It will match by name on the next scan.`); }
+    await this.replace({ ...p, notion: info });
+    return ok();
+  }
+
+  async ignoreFolder(name: string, ignored: boolean): Promise<Result> {
+    if (!this.projects.some((x) => x.name === name)) return fail('not-found', `No project named ${name}.`);
+    const cur = (await this.d.settings.load()).ignored;
+    const next = ignored ? [...new Set([...cur, name])] : cur.filter((n) => n !== name);
+    await this.d.settings.save({ ignored: next });
+    return ok();
+  }
+
+  async linkFolder(name: string, pageId: string): Promise<Result> {
+    const busy = this.busy();
+    if (busy) return busy;
+    const p = this.projects.find((x) => x.name === name);
+    if (!p) return fail('not-found', `No project named ${name}.`);
+    if (p.notion) return fail('not-eligible', `${name} already has a Notion page.`);
+    const page = this.unlinked.find((u) => u.id === pageId);
+    if (!page) return fail('not-found', 'That Notion page is already linked or no longer exists. Rescan to refresh.');
+    await this.d.settings.save({ overrides: { ...(await this.d.settings.load()).overrides, [name]: pageId } });
+    this.unlinked = this.unlinked.filter((u) => u.id !== pageId);
+    await this.replace({ ...p, notion: page.info });
+    return ok();
   }
 
   // ---------- settings and links
