@@ -8,6 +8,7 @@ export function applyUpdate(prev: Snapshot | undefined, u: ProjectUpdate): Snaps
   switch (u.kind) {
     case 'scan-started': return { ...prev, scanning: true, scanError: undefined };
     case 'notion': return { ...prev, notion: u.notion };
+    case 'open-review': return prev;
     case 'project': {
       const i = prev.projects.findIndex((p) => p.name === u.project.name);
       const projects = i >= 0 ? prev.projects.map((p, j) => (j === i ? u.project : p)) : [...prev.projects, u.project];

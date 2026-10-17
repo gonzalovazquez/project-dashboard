@@ -23,6 +23,7 @@ const api: DashboardApi = {
   addToNotion: (name) => ipcRenderer.invoke(CHANNELS.addToNotion, name),
   ignoreFolder: (name, ignored) => ipcRenderer.invoke(CHANNELS.ignoreFolder, name, ignored),
   linkFolder: (name, pageId) => ipcRenderer.invoke(CHANNELS.linkFolder, name, pageId),
+  applyReview: (plan) => ipcRenderer.invoke(CHANNELS.applyReview, plan),
   getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),
   saveSettings: (patch) => ipcRenderer.invoke(CHANNELS.saveSettings, patch),
   setToken: (token) => ipcRenderer.invoke(CHANNELS.setToken, token),

@@ -67,7 +67,7 @@ describe('settings, cache and merge', () => {
     expect(await store.load()).toEqual(defaultSettings());
     await store.save({ developmentFolder: '/Users/g/Code' });
     await store.save({ overrides: { a: 'p1' } });
-    expect(await createSettingsStore(path).load()).toEqual({ developmentFolder: '/Users/g/Code', overrides: { a: 'p1' }, ignored: [], appearance: 'system' });
+    expect(await createSettingsStore(path).load()).toEqual({ developmentFolder: '/Users/g/Code', overrides: { a: 'p1' }, ignored: [], appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, lastReviewAt: undefined });
     await store.save({ appearance: 'dark' });
     expect((await createSettingsStore(path).load()).appearance).toBe('dark');
   });
@@ -100,7 +100,7 @@ describe('settings, cache and merge', () => {
 });
 
 describe('renderer state', () => {
-  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, stageHistory: [], unlinkedPages: [], notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, ignored: [], tokenSource: 'none', secureStorageAvailable: true, appearance: 'system' }, ...over });
+  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, stageHistory: [], unlinkedPages: [], notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, ignored: [], tokenSource: 'none', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true }, ...over });
   it('adds and replaces projects as they stream in', () => {
     let s = applyUpdate(snap(), { kind: 'project', project: project({ name: 'b' }) })!;
     expect(s.projects.map((p) => p.name)).toEqual(['a', 'b']);

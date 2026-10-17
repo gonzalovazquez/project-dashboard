@@ -1,4 +1,5 @@
 import type { Project, StagePoint } from './types.js';
+import type { ReviewOutcome, ReviewPlan } from './review.js';
 
 export type Appearance = 'system' | 'light' | 'dark';
 export const APPEARANCES: Appearance[] = ['system', 'light', 'dark'];
@@ -21,6 +22,12 @@ export interface PublicSettings {
   tokenSource: 'env' | 'keychain' | 'none';
   secureStorageAvailable: boolean;
   appearance: Appearance;
+  /** 0 (Sunday) to 6 (Saturday). */
+  reviewDay: number;
+  /** Local time, HH:MM. */
+  reviewTime: string;
+  reviewReminder: boolean;
+  lastReviewAt?: string;
 }
 
 /** A Notion page that no folder is paired with, offered when linking a folder by hand. */
@@ -57,12 +64,14 @@ export type ProjectUpdate =
   | { kind: 'scan-started' }
   | { kind: 'project'; project: Project }
   | { kind: 'scan-finished'; snapshot: Snapshot }
-  | { kind: 'notion'; notion: NotionStatus };
+  | { kind: 'notion'; notion: NotionStatus }
+  /** The review reminder was clicked. */
+  | { kind: 'open-review' };
 
 export type LinkKind = 'github' | 'notion' | 'folder';
 
 export interface SwapChoice { parkName: string; reason: string; revisitOn?: string }
-export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string>; ignored?: string[]; appearance?: Appearance }
+export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string>; ignored?: string[]; appearance?: Appearance; reviewDay?: number; reviewTime?: string; reviewReminder?: boolean }
 
 /**
  * Everything the interface may call. Mutating calls run the pure rules in
@@ -86,6 +95,8 @@ export interface DashboardApi {
   ignoreFolder(name: string, ignored: boolean): Promise<Result>;
   /** Pairs a folder with an existing Notion page that no folder matched. */
   linkFolder(name: string, pageId: string): Promise<Result>;
+  /** Applies a whole weekly review in one step, or none of it. Then leaves a dated note on each reviewed page. */
+  applyReview(plan: ReviewPlan): Promise<Result<ReviewOutcome>>;
   getSettings(): Promise<PublicSettings>;
   saveSettings(patch: SettingsPatch): Promise<Result>;
   setToken(token: string | null): Promise<Result>;
@@ -106,6 +117,7 @@ export const CHANNELS = {
   addToNotion: 'dashboard:addToNotion',
   ignoreFolder: 'dashboard:ignoreFolder',
   linkFolder: 'dashboard:linkFolder',
+  applyReview: 'dashboard:applyReview',
   getSettings: 'dashboard:getSettings',
   saveSettings: 'dashboard:saveSettings',
   setToken: 'dashboard:setToken',

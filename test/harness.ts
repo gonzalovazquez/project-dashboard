@@ -41,7 +41,7 @@ export async function harness(o: HarnessOptions = {}) {
   const stagePath = join(tmp(), 'stage.json');
   if (o.stageSnapshot) await saveSnapshot(stagePath, o.stageSnapshot);
 
-  let settings: StoredSettings = { developmentFolder: '/dev', overrides: o.overrides ?? {}, ignored: [], appearance: 'system' };
+  let settings: StoredSettings = { developmentFolder: '/dev', overrides: o.overrides ?? {}, ignored: [], appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true };
   const settingsStore: SettingsStore = {
     load: async () => settings,
     save: async (patch) => { settings = { ...settings, ...patch }; return settings; },

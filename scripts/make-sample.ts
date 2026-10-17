@@ -22,7 +22,7 @@ const snapshot: Snapshot = {
   notion: variant === 'untracked' ? { state: 'not-configured', message: undefined } : { state: 'connected', syncedAt: NOW.toISOString(), pages: 8 },
   stageHistory: history,
   unlinkedPages: variant === 'full' ? [{ id: 'u1', title: 'Garden Planner', stage: 'Not started', url: 'https://notion.so/u1' }, { id: 'u2', title: 'Mood Journal', stage: 'In progress', url: 'https://notion.so/u2' }] : [],
-  settings: { developmentFolder: '/Users/gonzalo/Development', overrides: {}, ignored: variant === 'full' ? [all.find((p) => !p.notion)?.name ?? ''].filter(Boolean) : [], tokenSource: 'keychain', secureStorageAvailable: true, appearance: 'system' },
+  settings: { developmentFolder: '/Users/gonzalo/Development', overrides: {}, ignored: variant === 'full' ? [all.find((p) => !p.notion)?.name ?? ''].filter(Boolean) : [], tokenSource: 'keychain', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true },
 };
 await mkdir('out', { recursive: true });
 await writeFile(`out/sample-${variant}.json`, JSON.stringify(snapshot));

@@ -255,3 +255,19 @@ button.link:hover b { color: var(--blue); }
 .sheet-foot.spread { justify-content: space-between; align-items: center; flex-wrap: wrap; }
 th.r, td.r { text-align: right; }
 .scrim[hidden] { display: none; }
+
+/* ---- weekly review ---- */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.steps button { display: inline-flex; align-items: center; gap: 8px; border: 0; background: var(--fill); border-radius: 8px; padding: 6px 12px; font: inherit; color: var(--label2); }
+.steps button[aria-current="step"] { background: var(--card); color: var(--label); font-weight: 600; box-shadow: 0 0 0 0.5px var(--sep), 0 0.5px 2px rgba(0, 0, 0, 0.15); }
+.steps .n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 99px; background: var(--fill2); font-size: 11px; }
+.steps button[aria-current="step"] .n { background: var(--blue); color: #fff; }
+.decisions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.decisions > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 10px 0; border-bottom: 0.5px solid var(--sep); }
+.decisions > li:last-child { border-bottom: 0; }
+.decisions .who { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.park-fields { flex-basis: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 10px; }
+.rv-nav { display: flex; justify-content: space-between; }
+.plan, .blockers { margin: 0; padding-left: 18px; }
+.blockers { color: var(--orange); }
+.decisions .fld { flex: 1; }

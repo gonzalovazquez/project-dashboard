@@ -39,7 +39,7 @@ export function makeFakeNotion(pageSize = 2): FakeNotion {
       create: async (a) => write('pages.create', a, { id: 'new-page', url: 'https://notion.so/new-page' }),
     },
     blocks: {
-      children: { list: async (a) => paginate(f.blocks[a.block_id] ?? [], a.start_cursor) },
+      children: { list: async (a) => paginate(f.blocks[a.block_id] ?? [], a.start_cursor), append: async (a) => write('blocks.append', a) },
       update: async (a) => write('blocks.update', a),
     },
   };

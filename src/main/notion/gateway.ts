@@ -20,8 +20,8 @@ export interface NotionApi {
     create(a: { parent: { data_source_id: string; type?: 'data_source_id' }; properties: Record<string, any> }): Promise<any>;
   };
   blocks: {
-    children: { list(a: { block_id: string; start_cursor?: string; page_size?: number }): Promise<Page<any>> };
     update(a: { block_id: string; to_do: { checked: boolean } }): Promise<any>;
+    children: { list(a: { block_id: string; start_cursor?: string; page_size?: number }): Promise<Page<any>>; append(a: { block_id: string; children: any[] }): Promise<any> };
   };
 }
 
@@ -43,6 +43,8 @@ export interface NotionGateway {
   loadProjects(): Promise<LoadedPage[]>;
   setProperties(pageId: string, change: PageChange): Promise<void>;
   setCriterionChecked(blockId: string, checked: boolean): Promise<void>;
+  /** Adds a paragraph to the end of a page. */
+  appendNote(pageId: string, text: string): Promise<void>;
   createPage(title: string, stage?: Stage): Promise<{ pageId: string; url: string }>;
 }
 
@@ -104,6 +106,9 @@ export function createGateway(api: NotionApi, dataSourceId = DEFAULT_DATA_SOURCE
     },
     async setCriterionChecked(blockId, checked) {
       await api.blocks.update({ block_id: blockId, to_do: { checked } });
+    },
+    async appendNote(pageId, content) {
+      await api.blocks.children.append({ block_id: pageId, children: [{ object: 'block', type: 'paragraph', paragraph: { rich_text: text(content) } }] });
     },
     async createPage(title, stage = 'Not started') {
       const r = await api.pages.create({

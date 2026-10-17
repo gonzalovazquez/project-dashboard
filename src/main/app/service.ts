@@ -4,6 +4,7 @@ import {
   type Appearance, type LinkKind, type NotionStatus, type ProjectUpdate, type PublicSettings, type Result, type SettingsPatch, type Snapshot, type SwapChoice, type UnlinkedPage,
 } from '../../shared/ipc.js';
 import { kill, park, promote, ship, unpark } from '../../shared/rules.js';
+import { applyReview, reviewNote, type ReviewOutcome, type ReviewPlan } from '../../shared/review.js';
 import type { NotionBackend } from '../notion/backend.js';
 import type { PageChange } from '../notion/gateway.js';
 import { hasChanges } from '../notion/schema.js';
@@ -36,11 +37,12 @@ type RuleOutcome = { ok: true; projects: Project[] } | { ok: false; error: Extra
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** What changed on a page between two versions, and how to undo it. Only focus and lifecycle fields can change through rules. */
+/** What changed on a page between two versions, and how to undo it. Rules and the weekly review change focus, lifecycle and next-action fields. */
 function diffNotion(before: NotionInfo, after: NotionInfo): { change: PageChange; revert: PageChange } | undefined {
   const change: PageChange = {};
   const revert: PageChange = {};
   if (before.focus !== after.focus) { change.focus = after.focus; revert.focus = before.focus; }
+  if (before.nextAction !== after.nextAction) { change.nextAction = after.nextAction ?? null; revert.nextAction = before.nextAction ?? null; }
   if (before.stage !== after.stage) { change.stage = after.stage; revert.stage = before.stage; }
   if (before.stageChangedAt !== after.stageChangedAt) { change.stageChangedAt = after.stageChangedAt ?? null; revert.stageChangedAt = before.stageChangedAt ?? null; }
   if (before.life !== after.life) { change.life = after.life; revert.life = before.life; }
@@ -82,7 +84,7 @@ export class DashboardService {
   async getSettings(): Promise<PublicSettings> {
     const s = await this.d.settings.load();
     const { source } = await this.d.tokens.get();
-    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable, appearance: s.appearance, ignored: s.ignored };
+    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable, appearance: s.appearance, ignored: s.ignored, reviewDay: s.reviewDay, reviewTime: s.reviewTime, reviewReminder: s.reviewReminder, lastReviewAt: s.lastReviewAt };
   }
 
   async getSnapshot(): Promise<Snapshot> {
@@ -323,6 +325,38 @@ export class DashboardService {
     this.upsert(p);
     await this.d.cache.save({ scannedAt: this.scannedAt, projects: this.projects });
     this.emit({ kind: 'project', project: p });
+  }
+
+  // ---------- weekly review
+
+  /**
+   * Applies every decision of a weekly review or none: the rules check the whole plan first, the Notion
+   * writes are rolled back together if one fails, and only then do the dated notes go on each page.
+   * A note that cannot be written does not undo the review; it is reported so it can be added by hand.
+   */
+  async applyReview(plan: ReviewPlan): Promise<Result<ReviewOutcome>> {
+    const before = this.projects;
+    const r = await this.applyRule((ps) => {
+      const out = applyReview(ps, plan);
+      if (out.ok) return out;
+      return { ok: false, error: { code: out.error.code === 'duplicate' ? 'invalid' : out.error.code, message: out.error.message } };
+    });
+    if (!r.ok) return r;
+    const changed = this.projects.filter((p) => { const b = before.find((x) => x.name === p.name); return b?.notion && p.notion && diffNotion(b.notion, p.notion); }).length;
+
+    const now = this.now();
+    const notesFailed: string[] = [];
+    let notesWritten = 0;
+    const b = plan.decisions.length ? await this.backendFor(false) : undefined;
+    for (const d of plan.decisions) {
+      const p = this.projects.find((x) => x.name === d.name);
+      if (!p?.notion) continue;
+      if (!b || 'error' in b) { notesFailed.push(p.notion.title); continue; }
+      try { await b.backend.appendNote(p.notion.pageId, reviewNote(d, isoDate(now))); notesWritten++; }
+      catch { notesFailed.push(p.notion.title); }
+    }
+    await this.d.settings.save({ lastReviewAt: now.toISOString() });
+    return ok({ changed, notesWritten, notesFailed });
   }
 
   // ---------- inbox

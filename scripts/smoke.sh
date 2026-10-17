@@ -21,7 +21,7 @@ env -u NOTION_TOKEN DASHBOARD_HOME="$work/data" DASHBOARD_SMOKE="$out" \
 echo "screenshot: $out.png"
 node -e '
 const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8").replace(/^SMOKE_RESULT /, ""));
-const expectKeys = ["addToNotion","getSettings","getSnapshot","ignoreFolder","kill","linkFolder","markShipped","onProjectUpdate","openLink","park","promote","saveSettings","setCriterion","setNextAction","setToken","startScan","unpark"];
+const expectKeys = ["addToNotion","applyReview","getSettings","getSnapshot","ignoreFolder","kill","linkFolder","markShipped","onProjectUpdate","openLink","park","promote","saveSettings","setCriterion","setNextAction","setToken","startScan","unpark"];
 const checks = {
   "no launch error": !r.error,
   "sidebar counts both fixture folders": r.allProjects === "2" && r.inbox === "2",

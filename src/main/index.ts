@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, safeStorage, session, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, Notification, safeStorage, session, shell } from 'electron';
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -6,6 +6,7 @@ import { CHANNELS } from '../shared/ipc.js';
 import { createFileCache } from './app/cache.js';
 import { createHistoryStore } from './app/history.js';
 import { registerIpc } from './app/ipc.js';
+import { createReminder } from './app/reminder.js';
 import { TokenStore } from './app/secrets.js';
 import { DashboardService } from './app/service.js';
 import { createSettingsStore } from './app/settings.js';
@@ -65,6 +66,28 @@ function createWindow(): BrowserWindow {
 const indexFileUrl = pathToFileURL(join(here, '../renderer/index.html')).href;
 const trustedUrl = (url: string) => isTrustedUrl(url, { devUrl, indexFileUrl });
 
+/** Checks once a minute whether the weekly review is due, and shows a notification that opens it. */
+function startReminder(service: DashboardService, win: BrowserWindow) {
+  const reminder = createReminder({
+    schedule: async () => (await service.getSettings()),
+    notify: ({ title, body }) => {
+      if (!Notification.isSupported()) return;
+      const n = new Notification({ title, body });
+      n.on('click', () => {
+        const w = BrowserWindow.getAllWindows()[0] ?? win;
+        if (w.isMinimized()) w.restore();
+        w.show();
+        w.focus();
+        w.webContents.send(CHANNELS.update, { kind: 'open-review' });
+      });
+      n.show();
+    },
+  });
+  const tick = () => { void reminder.tick().catch((e) => console.error('Review reminder failed', e)); };
+  tick();
+  setInterval(tick, 60_000).unref();
+}
+
 void app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   const service = createService();
@@ -76,6 +99,7 @@ void app.whenReady().then(async () => {
   const win = createWindow();
   service.onUpdate((u) => { if (!win.isDestroyed()) win.webContents.send(CHANNELS.update, u); });
   if (smoke) runSmoke(service, win, smoke);
+  else startReminder(service, win);
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 

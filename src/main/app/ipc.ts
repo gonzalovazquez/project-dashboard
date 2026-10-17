@@ -1,4 +1,5 @@
 import { APPEARANCES, CHANNELS, fail, type LinkKind, type Result, type SettingsPatch, type SwapChoice } from '../../shared/ipc.js';
+import type { ReviewDecision, ReviewPlan } from '../../shared/review.js';
 import type { DashboardService } from './service.js';
 
 export interface IpcMainLike {
@@ -34,6 +35,25 @@ function swap(v: unknown): SwapChoice | undefined {
   return { parkName: str(o.parkName, 'parkName'), reason: str(o.reason, 'reason', 1000), revisitOn: date(o.revisitOn, 'revisitOn') };
 }
 
+const MAX_DECISIONS = 100;
+function plan(v: unknown): ReviewPlan {
+  if (typeof v !== 'object' || v === null) throw new BadInput('The review is not valid.');
+  const list = (v as Record<string, unknown>).decisions;
+  if (!Array.isArray(list) || list.length > MAX_DECISIONS) throw new BadInput('The review needs a list of decisions.');
+  const decisions = list.map((raw): ReviewDecision => {
+    if (typeof raw !== 'object' || raw === null) throw new BadInput('A decision is not valid.');
+    const o = raw as Record<string, unknown>;
+    const name = str(o.name, 'name', 255);
+    switch (o.action) {
+      case 'keep': case 'focus': return { name, action: o.action, nextAction: optStr(o.nextAction, 'nextAction', 200) };
+      case 'park': return { name, action: 'park', reason: str(o.reason, 'reason', 1000), revisitOn: date(o.revisitOn, 'revisitOn') ?? (() => { throw new BadInput('Choose when to revisit it.'); })() };
+      case 'kill': return { name, action: 'kill' };
+      default: throw new BadInput('Unknown review action.');
+    }
+  });
+  return { decisions };
+}
+
 function patch(v: unknown): SettingsPatch {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new BadInput('Settings must be an object.');
   const o = v as Record<string, unknown>;
@@ -49,6 +69,12 @@ function patch(v: unknown): SettingsPatch {
     if (!Array.isArray(o.ignored)) throw new BadInput('Ignored folders must be a list.');
     out.ignored = o.ignored.map((n) => str(n, 'folder name', 255));
   }
+  if (o.reviewDay !== undefined) {
+    if (typeof o.reviewDay !== 'number' || !Number.isInteger(o.reviewDay) || o.reviewDay < 0 || o.reviewDay > 6) throw new BadInput('The review day must be 0 to 6.');
+    out.reviewDay = o.reviewDay;
+  }
+  if (o.reviewTime !== undefined) out.reviewTime = str(o.reviewTime, 'reviewTime', 5);
+  if (o.reviewReminder !== undefined) out.reviewReminder = bool(o.reviewReminder, 'reviewReminder');
   if (o.appearance !== undefined) {
     if (typeof o.appearance !== 'string' || !(APPEARANCES as string[]).includes(o.appearance)) throw new BadInput('Appearance must be system, light or dark.');
     out.appearance = o.appearance as SettingsPatch['appearance'];
@@ -85,6 +111,7 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
   handle(CHANNELS.addToNotion, (name) => svc.addToNotion(str(name, 'name', 255)));
   handle(CHANNELS.ignoreFolder, (name, ignored) => svc.ignoreFolder(str(name, 'name', 255), bool(ignored, 'ignored')));
   handle(CHANNELS.linkFolder, (name, id) => svc.linkFolder(str(name, 'name', 255), str(id, 'pageId', 100)));
+  handle(CHANNELS.applyReview, (p) => svc.applyReview(plan(p)));
   handle(CHANNELS.getSettings, () => svc.getSettings());
   handle(CHANNELS.saveSettings, (p) => svc.saveSettings(patch(p)));
   handle(CHANNELS.setToken, (t) => svc.setToken(t === null ? null : str(t, 'token', 500)));

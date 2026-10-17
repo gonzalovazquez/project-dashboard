@@ -40,7 +40,7 @@ const load = async (variant, scheme = 'light', size = { width: 1280, height: 150
     window.dashboard = {
       getSnapshot: async () => s, startScan: async () => { window.__calls.push('startScan'); },
       onProjectUpdate: () => () => {}, saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); return { ok: true }; },
-      getSettings: async () => s.settings, setNextAction: rec('setNextAction'), setCriterion: rec('setCriterion'), promote: rec('promote'), park: rec('park'), kill: rec('kill'), unpark: rec('unpark'), addToNotion: rec('addToNotion'), ignoreFolder: rec('ignoreFolder'), linkFolder: rec('linkFolder'), markShipped: rec('markShipped'), setToken: ok, openLink: rec('openLink'),
+      getSettings: async () => s.settings, setNextAction: rec('setNextAction'), setCriterion: rec('setCriterion'), promote: rec('promote'), park: rec('park'), kill: rec('kill'), unpark: rec('unpark'), addToNotion: rec('addToNotion'), ignoreFolder: rec('ignoreFolder'), linkFolder: rec('linkFolder'), markShipped: rec('markShipped'), applyReview: async (plan) => { window.__calls.push(['applyReview', plan]); return { ok: true, value: { changed: plan.decisions.length, notesWritten: plan.decisions.length, notesFailed: [] } }; }, setToken: ok, openLink: rec('openLink'),
     };
   }, snap);
   await page.goto(base);
@@ -178,7 +178,7 @@ for (const scheme of ['light', 'dark']) {
     await page.click('[aria-label="Switch between light and dark"]');
     check('appearance toggle asks for dark while light', JSON.stringify((await page.evaluate(() => window.__calls)).at(-1)) === JSON.stringify(['saveSettings', { appearance: 'dark' }]));
     await page.click('.item:has-text("Weekly review")');
-    check('unbuilt screens say which week builds them', (await page.textContent('[data-placeholder="review"]')).includes('Week 7'));
+    check('weekly review opens', (await page.$$('[data-review-step="1"]')).length === 1);
   } else {
     await page.click('[aria-label="Switch between light and dark"]');
     check('appearance toggle asks for light while dark', JSON.stringify((await page.evaluate(() => window.__calls)).at(-1)) === JSON.stringify(['saveSettings', { appearance: 'light' }]));
@@ -329,6 +329,75 @@ for (const scheme of ['light', 'dark']) {
   await page.waitForSelector('[data-view=shipped]');
   check('shipped screen renders its list or its empty state', (await page.$$('[data-shipped], [data-state=shipped-empty]')).length > 0);
   check('week 6 screens have no console errors', errors.length === 0, errors.join('; '));
+  await page.close();
+}
+
+// ----- week 7: weekly review
+{
+  const { page, errors } = await load('full', 'light');
+  const lastCall = () => page.evaluate(() => window.__calls.at(-1));
+  check('a review that was never done shows the due banner', (await page.$$('[data-review-due]')).length === 1);
+  await page.click('[data-action=start-review]');
+  await page.waitForSelector('[data-review-step="1"]');
+  await page.screenshot({ path: join(shots, 'review-1.png'), fullPage: true });
+  check('step 1 lists the three focus projects', (await page.$$('[data-review-step="1"] tbody tr')).length === 3);
+  check('the due banner is not shown on the review itself', (await page.$$('[data-review-due]')).length === 0);
+  await page.selectOption('[data-field=day]', '2');
+  check('changing the reminder day saves it', JSON.stringify(await lastCall()) === JSON.stringify(['saveSettings', { reviewDay: 2 }]));
+
+  await page.click('[data-action=next]');
+  const stalled = await page.$$('[data-stalled]');
+  check('step 2 lists stalled projects', stalled.length > 0);
+  await page.screenshot({ path: join(shots, 'review-2.png'), fullPage: true });
+  const names = await page.$$eval('[data-stalled]', (els) => els.map((e) => e.getAttribute('data-stalled')));
+  await page.click(`[data-stalled="${names[0]}"] [data-choice=park]`);
+  check('choosing Park asks for a reason and a date', (await page.$$(`[data-park-fields="${names[0]}"]`)).length === 1);
+  await page.click('[data-step="4"]');
+  check('Apply is disabled while decisions are missing', await page.isDisabled('[data-action=apply-review]'));
+  const blockers = await page.textContent('[data-testid=blockers]');
+  check('the blockers say what is missing', /Say why/.test(blockers) || /Decide what to do/.test(blockers), blockers);
+  await page.click('[data-step="2"]');
+  await page.fill(`[data-park-fields="${names[0]}"] [data-field=reason]`, 'No time this month');
+  for (const n of names.slice(1)) await page.click(`[data-stalled="${n}"] [data-choice=keep]`);
+
+  await page.click('[data-step="3"]');
+  await page.screenshot({ path: join(shots, 'review-3.png'), fullPage: true });
+  const cand = await page.$$eval('[data-candidate]', (els) => els.map((e) => ({ name: e.getAttribute('data-candidate'), on: e.querySelector('input').checked })));
+  const slots = async () => (await page.textContent('[data-testid=slots]')).trim();
+  const on = cand.filter((c) => c.on).length;
+  check('step 3 shows used slots', (await slots()) === `${on} of 3 slots`, await slots());
+  const off = cand.find((c) => !c.on);
+  if (on === 3) {
+    await page.check(`[data-candidate="${off.name}"] input`).catch(() => {});
+    check('a full focus refuses another project', (await page.$$('[data-banner=blocked]')).length === 1);
+  }
+  const wanted = cand.find((c) => !c.on && c.name !== names[0]);
+  if ((await slots()).startsWith('3')) {
+    const drop = cand.find((c) => c.on && c.name !== names[0]);
+    await page.uncheck(`[data-candidate="${drop.name}"] input`);
+    check('removing a focus project parks it and asks why', (await page.$$(`[data-park-fields="${drop.name}"]`)).length === 1);
+    await page.fill(`[data-park-fields="${drop.name}"] [data-field=reason]`, 'Making room');
+  }
+  await page.check(`[data-candidate="${wanted.name}"] input`);
+  check('the swapped-in project takes the slot', (await slots()) === '3 of 3 slots', await slots());
+
+  await page.click('[data-action=next]');
+  await page.screenshot({ path: join(shots, 'review-4.png'), fullPage: true });
+  const missing = await page.$$eval('[data-field=next]', (els) => els.filter((e) => !e.value).length);
+  check('Apply is disabled exactly while a focus project lacks a next action', (await page.isDisabled('[data-action=apply-review]')) === (missing > 0), String(missing));
+  for (const el of await page.$$('[data-field=next]')) if (!(await el.inputValue())) await el.fill('Do the first small thing');
+  check('Apply is enabled once everything is decided', !(await page.isDisabled('[data-action=apply-review]')), (await page.textContent('[data-testid=blockers]').catch(() => '')) ?? '');
+  const lines = await page.$$eval('[data-testid=plan] li', (els) => els.map((e) => e.textContent));
+  check('the plan reads in plain words', lines.some((l) => l.startsWith('Park ')) && lines.some((l) => l.startsWith('Move ')), lines.join(' | '));
+  await page.click('[data-action=apply-review]');
+  const call = await lastCall();
+  check('Apply sends one plan with every decision', call[0] === 'applyReview' && call[1].decisions.length === lines.length, JSON.stringify(call));
+  const park = call[1].decisions.find((d) => d.action === 'park' && d.name === names[0]);
+  check('the plan carries the reason and date', park && park.reason === 'No time this month' && /^\d{4}-\d{2}-\d{2}$/.test(park.revisitOn), JSON.stringify(park));
+  await page.waitForSelector('[data-view=review-done]');
+  await page.screenshot({ path: join(shots, 'review-done.png') });
+  check('a finished review says what changed', /changed in Notion/.test(await page.textContent('[data-view=review-done]')));
+  check('week 7 has no console errors', errors.length === 0, errors.join('; '));
   await page.close();
 }
 

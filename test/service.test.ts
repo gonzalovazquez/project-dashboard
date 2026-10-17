@@ -285,7 +285,7 @@ describe('links, settings and token', () => {
     expectFail(await h.svc.saveSettings({ developmentFolder: 'relative/path' }), 'invalid');
     expectFail(await h.svc.saveSettings({ overrides: { '': 'id' } }), 'invalid');
     expect((await h.svc.saveSettings({ developmentFolder: '/Users/g/Dev', overrides: { a: 'p1' } })).ok).toBe(true);
-    expect(h.settings()).toEqual({ developmentFolder: '/Users/g/Dev', overrides: { a: 'p1' }, ignored: [], appearance: 'system' });
+    expect(h.settings()).toEqual({ developmentFolder: '/Users/g/Dev', overrides: { a: 'p1' }, ignored: [], appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, lastReviewAt: undefined });
     const missing = await harness({ ...board(), folderExists: false });
     expectFail(await missing.svc.saveSettings({ developmentFolder: '/nowhere' }), 'invalid');
   });
