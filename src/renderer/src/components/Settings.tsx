@@ -75,7 +75,7 @@ export function Settings({ snap, first, onFinish }: Props) {
         <p data-testid="notion-line"><b>{NOTION_TEXT[snap.notion.state]}</b>{snap.notion.pages !== undefined && snap.notion.state !== 'not-configured' ? `, ${snap.notion.pages} pages in the database` : ''}</p>
         {snap.notion.message && snap.notion.state !== 'not-configured' && <p className="mut small">{snap.notion.message}</p>}
         {snap.notion.state === 'schema-missing' && (
-          <p className="small" data-testid="schema-help">Run <code className="mono">npm run notion:setup</code> in the project folder to see the properties that are missing. It only changes anything when you add <code className="mono">--apply</code>.</p>
+          <p className="small" data-testid="schema-help">Run <code className="mono">npm run notion:setup</code> in the project folder to see the missing properties. That is only a preview. To add them, run <code className="mono">npm run notion:setup -- --apply</code>, then rescan.</p>
         )}
         <NoticeBar notice={token.notice} />
         {env ? (

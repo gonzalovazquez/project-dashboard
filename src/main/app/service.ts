@@ -162,7 +162,7 @@ export class DashboardService {
         this.unlinked = pulled.loaded.flatMap((l) => (l.info && !matched.has(l.page.id) ? [{ id: l.page.id, title: l.info.title, url: l.info.url, stage: l.info.stage, info: l.info }] : []));
         const schemaMissing = hasChanges(pulled.diff);
         this.notion = schemaMissing
-          ? { state: 'schema-missing', message: 'The Notion database is missing properties the app needs. Run npm run notion:setup to review and add them.', syncedAt: now.toISOString(), pages: pulled.loaded.length }
+          ? { state: 'schema-missing', message: 'The Notion database is missing properties the app needs. Run npm run notion:setup to review them, then npm run notion:setup -- --apply to add them, then rescan.', syncedAt: now.toISOString(), pages: pulled.loaded.length }
           : { state: 'connected', syncedAt: now.toISOString(), pages: pulled.loaded.length };
         if (!schemaMissing) await this.stampStageChanges(pulled.backend, pulled.loaded.flatMap((l) => (l.info ? [l.info] : [])), infoByFolder, now);
       }
@@ -203,7 +203,7 @@ export class DashboardService {
   private async backendFor(needsSchema: boolean): Promise<{ backend: NotionBackend } | { error: Result }> {
     const { token } = await this.d.tokens.get();
     if (!token) return { error: fail('no-notion', 'Add a Notion token in settings first.') };
-    if (needsSchema && this.notion.state === 'schema-missing') return { error: fail('schema-missing', 'The Notion database is missing properties the app needs. Run npm run notion:setup to review and add them.') };
+    if (needsSchema && this.notion.state === 'schema-missing') return { error: fail('schema-missing', 'The Notion database is missing properties the app needs. Run npm run notion:setup to review them, then npm run notion:setup -- --apply to add them, then rescan.') };
     return { backend: this.getBackend(token) };
   }
 
