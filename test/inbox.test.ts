@@ -82,3 +82,34 @@ describe('link to an existing page', () => {
     expectFail(await h.svc.linkFolder('nope', 'px'), 'not-found');
   });
 });
+
+describe('settings updates reach the interface', () => {
+  const metas = (h: Awaited<ReturnType<typeof scanned>>) => h.updates.filter((u) => u.kind === 'meta') as Array<Extract<(typeof h.updates)[number], { kind: 'meta' }>>;
+  it('after ignoring, saving settings, linking, adding, reviewing and changing the token', async () => {
+    const b = board();
+    const h = await scanned({ ...b, pages: [...b.pages, page('px', 'Garden Planner', 'In progress')] });
+    h.updates.length = 0;
+    await h.svc.ignoreFolder('loose', true);
+    expect(metas(h).at(-1)!.settings.ignored).toEqual(['loose']);
+    await h.svc.saveSettings({ reviewDay: 2 });
+    expect(metas(h).at(-1)!.settings.reviewDay).toBe(2);
+    await h.svc.setToken('another');
+    expect(metas(h).at(-1)!.settings.tokenSource).toBe('keychain');
+    const before = metas(h).length;
+    await h.svc.applyReview({ decisions: [] });
+    expect(metas(h)).toHaveLength(before + 1);
+    expect(metas(h).at(-1)!.settings.lastReviewAt).toBeDefined();
+  });
+  it('after linking a folder, the page is no longer offered', async () => {
+    const b = board();
+    const h = await scanned({ ...b, pages: [...b.pages, page('px', 'Garden Planner', 'In progress')] });
+    await h.svc.linkFolder('loose', 'px');
+    expect(metas(h).at(-1)!.unlinkedPages).toEqual([]);
+    expect(metas(h).at(-1)!.settings.overrides.loose).toBe('px');
+  });
+  it('after adding a folder to Notion, the override shows', async () => {
+    const h = await scanned();
+    await h.svc.addToNotion('loose');
+    expect(metas(h).at(-1)!.settings.overrides.loose).toBe('new-page');
+  });
+});

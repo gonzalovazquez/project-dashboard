@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { Snapshot } from '../../../shared/ipc.js';
 import { activityMix, ageBars, commitSeries, forecastRows, scatterPoints, stageColumns, techBreakdown, type Range } from '../viewmodel/charts.js';
-import { banners } from '../viewmodel/banners.js';
+import { Banners } from './Banners.js';
 import { buildOverview, type Kpi } from '../viewmodel/overview.js';
 import { portfolioRows } from '../viewmodel/portfolio.js';
 import { Chg, Sparkline } from './Bits.js';
@@ -46,14 +46,13 @@ export function Overview({ snap, now, range, onOpenProject }: Props) {
   }), [snap.projects, now]);
   const commits = useMemo(() => commitSeries(snap.projects, now, range), [snap.projects, now, range]);
   const stages = useMemo(() => stageColumns(snap.stageHistory ?? [], now, range), [snap.stageHistory, now, range]);
-  const notices = banners(snap);
   const folder = snap.settings.developmentFolder;
   const untracked = snap.projects.filter((p) => !p.notion).length;
 
   if (snap.projects.length === 0) {
     return (
       <>
-        {notices.map((b) => <p key={b.id} className={`banner ${b.tone}`} data-banner>{b.text}</p>)}
+        <Banners snap={snap} />
         <div className="card empty" data-state={snap.scanning ? 'scanning' : 'empty'}>
           {snap.scanning
             ? <><b>Scanning {folder}…</b><span>Projects appear here as each folder finishes.</span></>
@@ -65,7 +64,7 @@ export function Overview({ snap, now, range, onOpenProject }: Props) {
 
   return (
     <>
-      {notices.map((b) => <p key={b.id} className={`banner ${b.tone}`} data-banner>{b.text}</p>)}
+      <Banners snap={snap} />
       <div className="hello">
         <div className="eye">Executive summary</div>
         <h1 data-testid="headline">{model.headline.map((s, i) => (s.tone ? <span key={i} className={`h-${s.tone}`}>{s.text}</span> : s.text))}</h1>

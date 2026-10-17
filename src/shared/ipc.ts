@@ -27,6 +27,8 @@ export interface PublicSettings {
   /** Local time, HH:MM. */
   reviewTime: string;
   reviewReminder: boolean;
+  /** The first-run setup was finished or skipped. */
+  onboarded: boolean;
   lastReviewAt?: string;
 }
 
@@ -65,13 +67,15 @@ export type ProjectUpdate =
   | { kind: 'project'; project: Project }
   | { kind: 'scan-finished'; snapshot: Snapshot }
   | { kind: 'notion'; notion: NotionStatus }
+  /** Settings or the list of unlinked pages changed, for example after a save or a link. */
+  | { kind: 'meta'; settings: PublicSettings; unlinkedPages: UnlinkedPage[] }
   /** The review reminder was clicked. */
   | { kind: 'open-review' };
 
 export type LinkKind = 'github' | 'notion' | 'folder';
 
 export interface SwapChoice { parkName: string; reason: string; revisitOn?: string }
-export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string>; ignored?: string[]; appearance?: Appearance; reviewDay?: number; reviewTime?: string; reviewReminder?: boolean }
+export interface SettingsPatch { developmentFolder?: string; overrides?: Record<string, string>; ignored?: string[]; appearance?: Appearance; reviewDay?: number; reviewTime?: string; reviewReminder?: boolean; onboarded?: boolean }
 
 /**
  * Everything the interface may call. Mutating calls run the pure rules in
@@ -97,6 +101,8 @@ export interface DashboardApi {
   linkFolder(name: string, pageId: string): Promise<Result>;
   /** Applies a whole weekly review in one step, or none of it. Then leaves a dated note on each reviewed page. */
   applyReview(plan: ReviewPlan): Promise<Result<ReviewOutcome>>;
+  /** Opens the system folder picker. Resolves to the chosen path, or null when cancelled. */
+  chooseFolder(): Promise<Result<string | null>>;
   getSettings(): Promise<PublicSettings>;
   saveSettings(patch: SettingsPatch): Promise<Result>;
   setToken(token: string | null): Promise<Result>;
@@ -118,6 +124,7 @@ export const CHANNELS = {
   ignoreFolder: 'dashboard:ignoreFolder',
   linkFolder: 'dashboard:linkFolder',
   applyReview: 'dashboard:applyReview',
+  chooseFolder: 'dashboard:chooseFolder',
   getSettings: 'dashboard:getSettings',
   saveSettings: 'dashboard:saveSettings',
   setToken: 'dashboard:setToken',

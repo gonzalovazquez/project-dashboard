@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import type { NotionInfo, Project, ScanResult, StagePoint } from '../../shared/types.js';
 import {
   fail, ok,
@@ -24,6 +25,10 @@ export interface ServiceDeps {
   settings: SettingsStore;
   tokens: Pick<TokenStore, 'get' | 'set' | 'secureStorageAvailable'>;
   stageSnapshotPath: string;
+  /** Scans one folder. Optional so tests that never refresh a single project stay small. */
+  scanProject?(dir: string, name: string, now: Date): Promise<ScanResult>;
+  /** Opens the system folder picker. */
+  chooseFolder?(defaultPath?: string): Promise<string | null>;
   folderExists(path: string): Promise<boolean>;
   openExternal(url: string): Promise<void>;
   showInFolder(path: string): void;
@@ -84,7 +89,7 @@ export class DashboardService {
   async getSettings(): Promise<PublicSettings> {
     const s = await this.d.settings.load();
     const { source } = await this.d.tokens.get();
-    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable, appearance: s.appearance, ignored: s.ignored, reviewDay: s.reviewDay, reviewTime: s.reviewTime, reviewReminder: s.reviewReminder, lastReviewAt: s.lastReviewAt };
+    return { developmentFolder: s.developmentFolder, overrides: s.overrides, tokenSource: source, secureStorageAvailable: this.d.tokens.secureStorageAvailable, appearance: s.appearance, ignored: s.ignored, reviewDay: s.reviewDay, reviewTime: s.reviewTime, reviewReminder: s.reviewReminder, onboarded: s.onboarded, lastReviewAt: s.lastReviewAt };
   }
 
   async getSnapshot(): Promise<Snapshot> {
@@ -101,6 +106,12 @@ export class DashboardService {
   startScan(): Promise<void> {
     if (!this.running) this.running = this.doScan().finally(() => { this.running = undefined; });
     return this.running;
+  }
+
+  /** Tells the interface that settings or the unlinked pages changed, since those are not part of any project. */
+  private async emitMeta() {
+    const s = await this.getSnapshot();
+    this.emit({ kind: 'meta', settings: s.settings, unlinkedPages: s.unlinkedPages });
   }
 
   private upsert(p: Project) {
@@ -327,6 +338,33 @@ export class DashboardService {
     this.emit({ kind: 'project', project: p });
   }
 
+  // ---------- keeping up with the disk
+
+  /**
+   * Re-reads one folder after something changed in it, keeping its Notion data. Does nothing while a scan
+   * is running or when the folder is not a known project (a new folder needs a full scan).
+   */
+  async refreshProject(name: string): Promise<boolean> {
+    if (this.scanning || !this.d.scanProject) return false;
+    const known = this.projects.find((x) => x.name === name);
+    if (!known) return false;
+    const settings = await this.d.settings.load();
+    let fresh: ScanResult;
+    try { fresh = await this.d.scanProject(join(settings.developmentFolder, name), name, this.now()); }
+    catch { return false; }
+    if (this.scanning) return false;
+    const current = this.projects.find((x) => x.name === name);
+    if (!current) return false;
+    await this.replace(toProject(fresh, current.notion));
+    return true;
+  }
+
+  async chooseFolder(): Promise<Result<string | null>> {
+    if (!this.d.chooseFolder) return fail('internal', 'Choosing a folder is not available here.');
+    const current = (await this.d.settings.load()).developmentFolder;
+    return ok(await this.d.chooseFolder(current));
+  }
+
   // ---------- weekly review
 
   /**
@@ -356,6 +394,7 @@ export class DashboardService {
       catch { notesFailed.push(p.notion.title); }
     }
     await this.d.settings.save({ lastReviewAt: now.toISOString() });
+    await this.emitMeta();
     return ok({ changed, notesWritten, notesFailed });
   }
 
@@ -377,6 +416,7 @@ export class DashboardService {
     try { await this.d.settings.save({ overrides: { ...(await this.d.settings.load()).overrides, [name]: created.pageId } }); }
     catch (err) { await this.replace({ ...p, notion: info }); return fail('internal', `The page was created, but the link could not be saved: ${msg(err)}. It will match by name on the next scan.`); }
     await this.replace({ ...p, notion: info });
+    await this.emitMeta();
     return ok();
   }
 
@@ -385,6 +425,7 @@ export class DashboardService {
     const cur = (await this.d.settings.load()).ignored;
     const next = ignored ? [...new Set([...cur, name])] : cur.filter((n) => n !== name);
     await this.d.settings.save({ ignored: next });
+    await this.emitMeta();
     return ok();
   }
 
@@ -399,6 +440,7 @@ export class DashboardService {
     await this.d.settings.save({ overrides: { ...(await this.d.settings.load()).overrides, [name]: pageId } });
     this.unlinked = this.unlinked.filter((u) => u.id !== pageId);
     await this.replace({ ...p, notion: page.info });
+    await this.emitMeta();
     return ok();
   }
 
@@ -410,6 +452,7 @@ export class DashboardService {
     if (patch.developmentFolder && !(await this.d.folderExists(patch.developmentFolder))) return fail('invalid', 'That folder does not exist.');
     const saved = await this.d.settings.save(patch);
     if (patch.appearance) this.d.setAppearance?.(saved.appearance);
+    await this.emitMeta();
     return ok();
   }
 
@@ -418,6 +461,7 @@ export class DashboardService {
     try { await this.d.tokens.set(token); }
     catch (e) { return e instanceof SecureStorageUnavailable ? fail('no-secure-storage', e.message) : fail('invalid', msg(e)); }
     this.backend = undefined;
+    await this.emitMeta();
     return ok();
   }
 

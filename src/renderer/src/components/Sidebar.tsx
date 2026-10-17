@@ -58,6 +58,9 @@ export function Sidebar({ model, route, notion, scanning, scannedAt, folder, onN
         <Item to={{ view: 'parked' }} icon="pause" label="Parked" count={model.counts.parked} />
         <Item to={{ view: 'shipped' }} icon="flag" label="Shipped" count={model.counts.shipped} />
       </nav>
+      <nav className="sec" aria-label="App">
+        <Item to={{ view: 'settings' }} icon="gear" label="Settings" />
+      </nav>
       <div className="sidefoot">
         <span data-testid="notion-state"><i className="dot" style={{ background: `var(--${n.color})` }} />{n.text}</span>
         <span>{scanning ? 'Scanning…' : scannedAt ? `Scanned ${new Date(scannedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Not scanned yet'}</span>

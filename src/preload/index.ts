@@ -24,6 +24,7 @@ const api: DashboardApi = {
   ignoreFolder: (name, ignored) => ipcRenderer.invoke(CHANNELS.ignoreFolder, name, ignored),
   linkFolder: (name, pageId) => ipcRenderer.invoke(CHANNELS.linkFolder, name, pageId),
   applyReview: (plan) => ipcRenderer.invoke(CHANNELS.applyReview, plan),
+  chooseFolder: () => ipcRenderer.invoke(CHANNELS.chooseFolder),
   getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),
   saveSettings: (patch) => ipcRenderer.invoke(CHANNELS.saveSettings, patch),
   setToken: (token) => ipcRenderer.invoke(CHANNELS.setToken, token),

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Snapshot } from '../../../shared/ipc.js';
 import type { Project } from '../../../shared/types.js';
-import { banners } from '../viewmodel/banners.js';
+import { Banners } from './Banners.js';
 import { burnup, deepTiles, detailRows, healthModel, heatmap, kickoffPrompt, languageSegments, recentCommitRows, weekBars, writeAccess } from '../viewmodel/deepdive.js';
 import { Pill } from './Bits.js';
 import { KpiTile } from './Overview.js';
@@ -34,7 +34,6 @@ export function DeepDive({ snap, project, now }: { snap: Snapshot; project: Proj
     tiles: deepTiles(project, now), burn: burnup(project, now), heat: heatmap(project, now), weeks: weekBars(project, now),
     health: healthModel(project, now), langs: languageSegments(project), rows: detailRows(project, now), commits: recentCommitRows(project, now),
   }), [project, now]);
-  const notices = banners(snap);
   const allDone = model.burn.ready;
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -45,7 +44,7 @@ export function DeepDive({ snap, project, now }: { snap: Snapshot; project: Proj
 
   return (
     <>
-      {notices.map((b) => <p key={b.id} className={`banner ${b.tone}`} data-banner>{b.text}</p>)}
+      <Banners snap={snap} />
       {access.reason && <p className="banner warn" data-banner="write-access">{access.reason}</p>}
       <NoticeBar notice={act.notice} />
       <div className="dd-head">

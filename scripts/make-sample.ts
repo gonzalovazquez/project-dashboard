@@ -14,16 +14,19 @@ const week = (back: number, c: [number, number, number, number]) => {
 };
 const history = variant === 'sparse' ? [week(0, [0, 2, 4, 0])] : variant === 'full' || variant === 'scanning' ? [week(8, [2, 3, 1, 0]), week(7, [2, 3, 1, 0]), week(6, [1, 3, 2, 0]), week(5, [1, 3, 2, 0]), week(4, [1, 2, 3, 0]), week(3, [0, 2, 3, 0]), week(2, [0, 2, 4, 0]), week(1, [0, 2, 4, 0]), week(0, [0, 2, 4, 0])] : [];
 const all = sampleProjects();
-const projects = variant === 'untracked' ? all.filter((p) => !p.notion) : variant === 'empty' || variant === 'scanning-empty' ? [] : all;
+const projects = variant === 'firstrun' ? [] : variant === 'untracked' ? all.filter((p) => !p.notion) : variant === 'empty' || variant === 'scanning-empty' ? [] : all;
 const snapshot: Snapshot = {
+  scanError: variant === 'broken' ? 'The folder /Users/gonzalo/Development does not exist. Choose your Development folder in settings.' : undefined,
   projects,
   scannedAt: NOW.toISOString(),
   scanning: variant === 'scanning' || variant === 'scanning-empty',
-  notion: variant === 'untracked' ? { state: 'not-configured', message: undefined } : { state: 'connected', syncedAt: NOW.toISOString(), pages: 8 },
+  notion: variant === 'untracked' || variant === 'firstrun' ? { state: 'not-configured', message: undefined } : variant === 'broken' ? { state: 'error', message: 'Could not reach Notion: getaddrinfo ENOTFOUND api.notion.com. Showing the last known data.', syncedAt: NOW.toISOString(), pages: 8 } : { state: 'connected', syncedAt: NOW.toISOString(), pages: 8 },
   stageHistory: history,
   unlinkedPages: variant === 'full' ? [{ id: 'u1', title: 'Garden Planner', stage: 'Not started', url: 'https://notion.so/u1' }, { id: 'u2', title: 'Mood Journal', stage: 'In progress', url: 'https://notion.so/u2' }] : [],
-  settings: { developmentFolder: '/Users/gonzalo/Development', overrides: {}, ignored: variant === 'full' ? [all.find((p) => !p.notion)?.name ?? ''].filter(Boolean) : [], tokenSource: 'keychain', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true },
+  settings: { developmentFolder: '/Users/gonzalo/Development', overrides: {}, ignored: variant === 'full' ? [all.find((p) => !p.notion)?.name ?? ''].filter(Boolean) : [], tokenSource: variant === 'firstrun' || variant === 'untracked' ? 'none' : 'keychain', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: variant !== 'firstrun' },
 };
 await mkdir('out', { recursive: true });
+// A project with a missing pulse makes the Overview throw while drawing, to prove the crash screen catches it.
+if (variant === 'crash') (snapshot.projects[0] as unknown as { pulse: unknown }).pulse = null;
 await writeFile(`out/sample-${variant}.json`, JSON.stringify(snapshot));
 console.log(`wrote out/sample-${variant}.json (${projects.length} projects)`);

@@ -180,7 +180,7 @@ export function Review({ snap, now, state, onState, onFinish }: Props) {
   );
 }
 
-function ScheduleCard({ snap }: { snap: Snapshot }) {
+export function ScheduleCard({ snap }: { snap: Snapshot }) {
   const s = snap.settings;
   const act = useAction();
   const save = (patch: Parameters<typeof window.dashboard.saveSettings>[0]) => void act.run(() => window.dashboard.saveSettings(patch));

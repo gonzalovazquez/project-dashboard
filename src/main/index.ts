@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, Notification, safeStorage, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, safeStorage, session, shell } from 'electron';
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -7,12 +7,13 @@ import { createFileCache } from './app/cache.js';
 import { createHistoryStore } from './app/history.js';
 import { registerIpc } from './app/ipc.js';
 import { createReminder } from './app/reminder.js';
+import { createWatcher, fsWatch } from './app/watcher.js';
 import { TokenStore } from './app/secrets.js';
 import { DashboardService } from './app/service.js';
 import { createSettingsStore } from './app/settings.js';
 import { isTrustedUrl } from './app/trust.js';
 import { createNotionBackend } from './notion/backend.js';
-import { scanRoot } from './scanner/scan.js';
+import { scanProject, scanRoot } from './scanner/scan.js';
 import { runSmoke } from './smoke.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -38,6 +39,13 @@ function createService(): DashboardService {
       decrypt: (b) => safeStorage.decryptString(b),
     }),
     stageSnapshotPath: join(data, 'stage-snapshot.json'),
+    scanProject: (dir, name, now) => scanProject(dir, name, now),
+    chooseFolder: async (defaultPath) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      const opts = { title: 'Choose your Development folder', defaultPath, properties: ['openDirectory' as const, 'createDirectory' as const] };
+      const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts);
+      return r.canceled || r.filePaths.length === 0 ? null : r.filePaths[0];
+    },
     folderExists: isDir,
     openExternal: async (url) => {
       if (!url.startsWith('https://')) throw new Error('Only https links can be opened.');
@@ -58,6 +66,13 @@ function createWindow(): BrowserWindow {
   });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
+  // A crashed or killed renderer is reloaded once; the interface is stateless apart from what the main process holds.
+  let reloads = 0;
+  win.webContents.on('render-process-gone', (_e, details) => {
+    console.error('The window process ended:', details.reason);
+    if (details.reason !== 'clean-exit' && reloads++ < 2 && !win.isDestroyed()) win.webContents.reload();
+  });
+  win.webContents.on('unresponsive', () => console.error('The window stopped responding.'));
   if (devUrl) void win.loadURL(devUrl); else void win.loadFile(join(here, '../renderer/index.html'));
   return win;
 }
@@ -88,6 +103,19 @@ function startReminder(service: DashboardService, win: BrowserWindow) {
   setInterval(tick, 60_000).unref();
 }
 
+/** Rescans when folders come and go, and refreshes a single project when its git folder changes. */
+function startWatching(service: DashboardService) {
+  const watcher = createWatcher({
+    watch: fsWatch,
+    onFolders: () => { void service.startScan(); },
+    onProject: (name) => { void service.refreshProject(name).catch((e) => console.error('Refresh failed', e)); },
+  });
+  const sync = async () => { const s = await service.getSnapshot(); watcher.sync(s.settings.developmentFolder, s.projects.map((p) => p.name)); };
+  service.onUpdate((u) => { if (u.kind === 'scan-finished') void sync(); });
+  void sync();
+  app.on('before-quit', () => watcher.close());
+}
+
 void app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   const service = createService();
@@ -99,7 +127,7 @@ void app.whenReady().then(async () => {
   const win = createWindow();
   service.onUpdate((u) => { if (!win.isDestroyed()) win.webContents.send(CHANNELS.update, u); });
   if (smoke) runSmoke(service, win, smoke);
-  else startReminder(service, win);
+  else { startReminder(service, win); startWatching(service); }
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 

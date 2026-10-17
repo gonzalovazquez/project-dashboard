@@ -6,6 +6,7 @@ const PATHS = {
   pause: <g fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="12" cy="12" r="8.5" /><path d="M10 9v6M14 9v6" /></g>,
   flag: <path d="M6 20.5v-16M6 5h11l-2 4 2 4H6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />,
   refresh: <path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />,
+  gear: <g fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="12" cy="12" r="3.2" /><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" /></g>,
   half: <g stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="8.5" fill="none" /><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor" /></g>,
 } as const;
 

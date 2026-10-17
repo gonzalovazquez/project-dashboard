@@ -24,6 +24,9 @@ export interface HarnessOptions {
   secureStorage?: boolean;
   scanDelay?: Promise<void>;
   appearanceLog?: string[];
+  /** What scanning a single folder returns, by name. */
+  fresh?: Record<string, ScanResult>;
+  picked?: string | null;
   /** Points the history store already holds. */
   history?: import('../src/shared/types.js').StagePoint[];
 }
@@ -41,7 +44,7 @@ export async function harness(o: HarnessOptions = {}) {
   const stagePath = join(tmp(), 'stage.json');
   if (o.stageSnapshot) await saveSnapshot(stagePath, o.stageSnapshot);
 
-  let settings: StoredSettings = { developmentFolder: '/dev', overrides: o.overrides ?? {}, ignored: [], appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true };
+  let settings: StoredSettings = { developmentFolder: '/dev', overrides: o.overrides ?? {}, ignored: [], appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: false };
   const settingsStore: SettingsStore = {
     load: async () => settings,
     save: async (patch) => { settings = { ...settings, ...patch }; return settings; },
@@ -71,6 +74,8 @@ export async function harness(o: HarnessOptions = {}) {
     notion: () => { backendsMade++; return { ...createGateway(fake.api), schemaStatus: async () => diffSchema(fake.dataSource) }; },
     cache, history, settings: settingsStore, tokens: tokens as ServiceDeps['tokens'],
     stageSnapshotPath: stagePath,
+    scanProject: async (_dir, name) => { const r = o.fresh?.[name]; if (!r) throw new Error('vanished'); return r; },
+    chooseFolder: async () => o.picked ?? null,
     folderExists: async () => o.folderExists ?? true,
     openExternal: async (u) => { opened.push(u); },
     showInFolder: (p) => { shown.push(p); },

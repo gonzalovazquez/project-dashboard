@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Set SMOKE_BIN to the packaged executable to test that instead of running from source.
 # Launches the built app against a throwaway data folder and a small fixture Development folder,
 # then checks that the window rendered the scanned projects. Linux only (uses xvfb).
 set -euo pipefail
@@ -14,19 +15,19 @@ for name in alpha beta; do
   git -C "$dev/$name" -c user.name=t -c user.email=t@t commit -q -m init
 done
 mkdir -p "$work/data"
-echo "{\"developmentFolder\":\"$dev\",\"overrides\":{}}" > "$work/data/settings.json"
+echo "{\"developmentFolder\":\"$dev\",\"overrides\":{},\"onboarded\":true}" > "$work/data/settings.json"
 out="${SMOKE_OUT:-$work/smoke}"
 env -u NOTION_TOKEN DASHBOARD_HOME="$work/data" DASHBOARD_SMOKE="$out" \
-  xvfb-run -a npx electron . --no-sandbox --disable-gpu 2>&1 | grep SMOKE_RESULT | tee "$work/result.txt"
+  xvfb-run -a ${SMOKE_BIN:-npx electron .} --no-sandbox --disable-gpu 2>&1 | grep SMOKE_RESULT | tee "$work/result.txt"
 echo "screenshot: $out.png"
 node -e '
 const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8").replace(/^SMOKE_RESULT /, ""));
-const expectKeys = ["addToNotion","applyReview","getSettings","getSnapshot","ignoreFolder","kill","linkFolder","markShipped","onProjectUpdate","openLink","park","promote","saveSettings","setCriterion","setNextAction","setToken","startScan","unpark"];
+const expectKeys = ["addToNotion","applyReview","chooseFolder","getSettings","getSnapshot","ignoreFolder","kill","linkFolder","markShipped","onProjectUpdate","openLink","park","promote","saveSettings","setCriterion","setNextAction","setToken","startScan","unpark"];
 const checks = {
   "no launch error": !r.error,
   "sidebar counts both fixture folders": r.allProjects === "2" && r.inbox === "2",
   "headline asks to connect Notion": typeof r.headline === "string" && r.headline.includes("Connect Notion"),
-  "banner explains how to connect": typeof r.banner === "string" && r.banner.includes("NOTION_TOKEN"),
+  "banner explains how to connect": typeof r.banner === "string" && r.banner.includes("Notion is not connected"),
   "portfolio says nothing is tracked": r.noTracked === true,
   "sidebar says Notion is not connected": typeof r.notionState === "string" && r.notionState.includes("not connected"),
   "bridge exposes exactly the intended methods": JSON.stringify(r.bridgeKeys) === JSON.stringify(expectKeys),

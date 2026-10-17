@@ -25,8 +25,8 @@ const dir = readdirSync(browsers).filter((d) => /^chromium-\d+$/.test(d)).sort()
 const executablePath = existsSync(join(browsers, dir, 'chrome-linux64/chrome')) ? join(browsers, dir, 'chrome-linux64/chrome') : join(browsers, dir, 'chrome-linux/chrome');
 const browser = await chromium.launch({ executablePath });
 
-const load = async (variant, scheme = 'light', size = { width: 1280, height: 1500 }) => {
-  const snap = JSON.parse(await readFile(`out/sample-${variant}.json`, 'utf8'));
+const load = async (variant, scheme = 'light', size = { width: 1280, height: 1500 }, patch = (s) => s) => {
+  const snap = patch(JSON.parse(await readFile(`out/sample-${variant}.json`, 'utf8')));
   const page = await browser.newPage({ viewport: size, colorScheme: scheme });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -35,12 +35,22 @@ const load = async (variant, scheme = 'light', size = { width: 1280, height: 150
   page.on('response', (r) => { if (r.status() >= 400 && !r.url().endsWith('/favicon.ico')) errors.push(`${r.status()} ${r.url()}`); });
   await page.addInitScript((s) => {
     window.__calls = [];
-    const rec = (n) => async (...a) => { window.__calls.push([n, ...a]); return { ok: true }; };
+    const listeners = [];
+    // Like the main process, settings changes are announced so the interface never shows stale values.
+    const meta = () => listeners.forEach((l) => l({ kind: 'meta', settings: s.settings, unlinkedPages: s.unlinkedPages }));
+    const rec = (n, after) => async (...a) => { window.__calls.push([n, ...a]); after?.(...a); return { ok: true }; };
     const ok = async () => ({ ok: true });
     window.dashboard = {
       getSnapshot: async () => s, startScan: async () => { window.__calls.push('startScan'); },
-      onProjectUpdate: () => () => {}, saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); return { ok: true }; },
-      getSettings: async () => s.settings, setNextAction: rec('setNextAction'), setCriterion: rec('setCriterion'), promote: rec('promote'), park: rec('park'), kill: rec('kill'), unpark: rec('unpark'), addToNotion: rec('addToNotion'), ignoreFolder: rec('ignoreFolder'), linkFolder: rec('linkFolder'), markShipped: rec('markShipped'), applyReview: async (plan) => { window.__calls.push(['applyReview', plan]); return { ok: true, value: { changed: plan.decisions.length, notesWritten: plan.decisions.length, notesFailed: [] } }; }, setToken: ok, openLink: rec('openLink'),
+      onProjectUpdate: (l) => { listeners.push(l); return () => {}; },
+      saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); Object.assign(s.settings, p); meta(); return { ok: true }; },
+      getSettings: async () => s.settings, setNextAction: rec('setNextAction'), setCriterion: rec('setCriterion'),
+      promote: rec('promote'), park: rec('park'), kill: rec('kill'), unpark: rec('unpark'), addToNotion: rec('addToNotion'),
+      ignoreFolder: rec('ignoreFolder', (name, ignored) => { s.settings.ignored = ignored ? [...new Set([...s.settings.ignored, name])] : s.settings.ignored.filter((n) => n !== name); meta(); }),
+      linkFolder: rec('linkFolder'), markShipped: rec('markShipped'),
+      applyReview: async (plan) => { window.__calls.push(['applyReview', plan]); return { ok: true, value: { changed: plan.decisions.length, notesWritten: plan.decisions.length, notesFailed: [] } }; },
+      setToken: rec('setToken', (t) => { s.settings.tokenSource = t ? 'keychain' : 'none'; meta(); }),
+      chooseFolder: async () => { window.__calls.push(['chooseFolder']); return { ok: true, value: '/Users/gonzalo/Code' }; }, openLink: rec('openLink'),
     };
   }, snap);
   await page.goto(base);
@@ -318,6 +328,7 @@ for (const scheme of ['light', 'dark']) {
   check('linking sends the folder and page id', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['linkFolder', name, 'u1']));
   await page.click(`[data-inbox="${name}"] [data-action=ignore]`);
   check('Ignore calls the bridge', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['ignoreFolder', name, true]));
+  check('an ignored folder moves to the ignored list', (await page.$$(`[data-view=inbox] [data-inbox="${name}"]`)).length === 0 && (await page.$$(`[data-view=ignored] [data-inbox="${name}"]`)).length === 1);
   await page.click('[data-view=ignored] [data-action=unignore]');
   check('Restore calls the bridge', (await page.evaluate(() => window.__calls.at(-1)))[2] === false);
   check('sidebar inbox count excludes ignored folders', Number(await page.textContent('.item:has-text("Inbox") .c')) === rows.length);
@@ -401,11 +412,82 @@ for (const scheme of ['light', 'dark']) {
   await page.close();
 }
 
+// ----- week 8: setup, settings, failure states
+{
+  const { page, errors } = await load('firstrun');
+  const calls = () => page.evaluate(() => window.__calls);
+  check('first launch lands on setup', (await page.$$('[data-view=welcome]')).length === 1 && (await page.getAttribute('.content', 'data-route')) === 'settings');
+  await page.screenshot({ path: join(shots, 'setup.png'), fullPage: true });
+  check('setup says Notion is not connected', (await page.textContent('[data-testid=notion-line]')).includes('Not connected'));
+  check('the token field hides what is typed', (await page.getAttribute('[data-field=token]', 'type')) === 'password');
+  check('Connect is disabled until a token is typed', await page.isDisabled('[data-action=connect]'));
+  await page.click('[data-action=choose-folder]');
+  const c1 = await calls();
+  check('Choose folder asks the main process, saves the folder and rescans', c1.some((c) => c[0] === 'chooseFolder') && c1.some((c) => c[0] === 'saveSettings' && c[1].developmentFolder === '/Users/gonzalo/Code') && c1.includes('startScan'), JSON.stringify(c1));
+  await page.fill('[data-field=token]', '  secret_abc  ');
+  await page.click('[data-action=connect]');
+  const c2 = await calls();
+  check('Connect sends the trimmed token and rescans', JSON.stringify(c2.filter((c) => c[0] === 'setToken')) === JSON.stringify([['setToken', 'secret_abc']]) && c2.at(-1) === 'startScan', JSON.stringify(c2.slice(-3)));
+  check('the token is cleared from the field afterwards', (await page.inputValue('[data-field=token]')) === '');
+  await page.click('[data-action=finish-setup]');
+  check('finishing records it and opens the Overview', JSON.stringify((await calls()).filter((c) => c[0] === 'saveSettings').at(-1)) === JSON.stringify(['saveSettings', { onboarded: true }]) && (await page.getAttribute('.content', 'data-route')) === 'overview');
+  check('setup has no console errors', errors.length === 0, errors.join('; '));
+  await page.close();
+}
+{
+  const { page, errors } = await load('full');
+  await page.click('.item:has-text("Settings")');
+  await page.waitForSelector('[data-section=notion]');
+  await page.screenshot({ path: join(shots, 'settings.png'), fullPage: true });
+  check('settings shows the connection', (await page.textContent('[data-testid=notion-line]')).includes('Connected'));
+  check('settings has the reminder schedule', (await page.$$('[data-section=schedule]')).length === 1);
+  await page.click('[data-appearance=dark]');
+  check('appearance buttons save', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['saveSettings', { appearance: 'dark' }]));
+  await page.click('[data-action=disconnect]');
+  check('Disconnect clears the token', JSON.stringify(await page.evaluate(() => window.__calls.at(-2))) === JSON.stringify(['setToken', null]));
+  check('settings has no console errors', errors.length === 0, errors.join('; '));
+  await page.close();
+}
+{
+  const env = await load('full', 'light', undefined, (s) => ({ ...s, settings: { ...s.settings, tokenSource: 'env' } }));
+  await env.page.click('.item:has-text("Settings")');
+  check('a token from the environment is explained, not editable', (await env.page.$$('[data-testid=token-env]')).length === 1 && (await env.page.$$('[data-field=token]')).length === 0);
+  await env.page.close();
+  const nosec = await load('untracked', 'light', undefined, (s) => ({ ...s, settings: { ...s.settings, onboarded: true, secureStorageAvailable: false } }));
+  await nosec.page.click('.item:has-text("Settings")');
+  check('without secure storage the field is replaced by an explanation', (await nosec.page.$$('[data-testid=no-secure-storage]')).length === 1 && (await nosec.page.$$('[data-field=token]')).length === 0);
+  await nosec.page.close();
+  const schema = await load('full', 'light', undefined, (s) => ({ ...s, notion: { state: 'schema-missing', message: 'The Notion database is missing properties the app needs.' } }));
+  await schema.page.click('.item:has-text("Settings")');
+  check('a missing schema says which command to run', (await schema.page.textContent('[data-testid=schema-help]')).includes('npm run notion:setup'));
+  await schema.page.close();
+}
+{
+  const { page, errors } = await load('broken');
+  await page.screenshot({ path: join(shots, 'broken.png') });
+  const banners = await page.$$eval('[data-banner]', (els) => els.map((e) => e.getAttribute('data-banner')));
+  check('a failed scan and an unreachable Notion both show', banners.includes('scan') && banners.includes('notion'), banners.join());
+  check('failure banners keep the last known data on screen', (await page.$$('tbody tr[data-project]')).length > 0);
+  await page.click('[data-banner=notion] [data-banner-action=rescan]');
+  check('Try again rescans', (await page.evaluate(() => window.__calls)).includes('startScan'));
+  await page.click('[data-banner=scan] [data-banner-action=settings]');
+  check('a missing folder banner opens settings', (await page.getAttribute('.content', 'data-route')) === 'settings');
+  check('failure screens have no console errors', errors.length === 0, errors.join('; '));
+  await page.close();
+}
+{
+  const { page } = await load('crash');
+  await page.waitForSelector('[data-state=crashed]', { timeout: 5000 }).catch(() => {});
+  await page.screenshot({ path: join(shots, 'crash.png') });
+  check('a screen that cannot draw shows a recovery screen, not a blank window', (await page.$$('[data-state=crashed]')).length === 1 && (await page.$$('[data-action=reload]')).length === 1);
+  await page.close();
+}
+
 // ----- states
 {
   const { page } = await load('untracked', 'light', { width: 1280, height: 900 });
   await page.screenshot({ path: join(shots, 'no-notion.png') });
-  check('without Notion: banner explains how to connect', (await page.textContent('[data-banner]')).includes('NOTION_TOKEN'));
+  check('without Notion: banner explains how to connect', (await page.textContent('[data-banner]')).includes('Notion is not connected'));
   check('without Notion: headline asks to connect', (await page.textContent('[data-testid=headline]')).includes('Connect Notion'));
   check('without Notion: the portfolio says nothing is tracked', (await page.getAttribute('[data-state=no-tracked]', 'data-state')) === 'no-tracked');
   const stacked = await page.$eval('[data-state=no-tracked]', (el) => { const [a, b] = [...el.children].map((c) => c.getBoundingClientRect()); return a.bottom <= b.top + 1; });

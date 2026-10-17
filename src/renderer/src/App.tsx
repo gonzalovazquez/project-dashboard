@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Snapshot } from '../../shared/ipc.js';
 import { DeepDive } from './components/DeepDive.js';
+import { NavContext } from './components/nav.js';
+import { Settings } from './components/Settings.js';
 import { Inbox, Parked, Shipped } from './components/Lists.js';
 import { newReview, Review, type ReviewState } from './components/Review.js';
 import { Library } from './components/Library.js';
@@ -45,16 +47,32 @@ export function App() {
     return () => { alive = false; off(); };
   }, []);
 
+  // Coming back to the app after a while rescans, so a missed file event never leaves stale numbers on screen.
+  const latest = useRef(snap);
+  latest.current = snap;
+  useEffect(() => {
+    const STALE = 10 * 60_000;
+    const refocus = () => {
+      const s = latest.current;
+      if (s && !s.scanning && s.scannedAt && Date.now() - Date.parse(s.scannedAt) > STALE) void window.dashboard.startScan();
+    };
+    window.addEventListener('focus', refocus);
+    return () => window.removeEventListener('focus', refocus);
+  }, []);
+
   // Time-based numbers are computed against the moment the data last changed, not on every render.
   const now = useMemo(() => new Date(), [snap?.projects]);
   const rescan = useCallback(() => void window.dashboard.startScan(), []);
+  const nav = useMemo(() => ({ openSettings: () => setRoute({ view: 'settings' }), rescan }), [rescan]);
   const toggleAppearance = useCallback(() => void window.dashboard.saveSettings({ appearance: dark ? 'light' : 'dark' }), [dark]);
 
   if (!snap) return <div className="loading" data-state="loading">Loading…</div>;
 
   // A focus project that was parked or shipped no longer has a deep dive.
   const gone = route.view === 'project' && !snap.projects.some((p) => p.name === route.name && p.notion?.focus);
-  const current: Route = gone ? OVERVIEW : route;
+  // The first launch lands on setup until the person finishes or skips it. Someone who already has a token skips it.
+  const firstRun = !snap.settings.onboarded && snap.notion.state === 'not-configured';
+  const current: Route = firstRun ? { view: 'settings' } : gone ? OVERVIEW : route;
   const due = dueSince(now, snap.settings);
   const lookProject = look ? snap.projects.find((p) => p.name === look) : undefined;
   const model = sidebarModel(snap.projects, now, 3, snap.settings.ignored);
@@ -67,16 +85,18 @@ export function App() {
       : current.view === 'inbox' ? { title: 'Inbox', subtitle: 'Folders not in Notion yet' }
       : current.view === 'parked' ? { title: 'Parked', subtitle: 'Set aside, with a date to revisit' }
       : current.view === 'shipped' ? { title: 'Shipped', subtitle: 'Reached General Available' }
+      : current.view === 'settings' ? { title: firstRun ? 'Welcome' : 'Settings', subtitle: firstRun ? 'Set up the dashboard' : 'Folder, Notion and reminders' }
       : { title: 'Weekly review', subtitle: 'Decide what stays in focus' };
 
   return (
+    <NavContext.Provider value={nav}>
     <TipProvider>
     <div className="app">
       <Sidebar model={model} route={current} notion={snap.notion} scanning={snap.scanning} scannedAt={snap.scannedAt} folder={snap.settings.developmentFolder} onNavigate={setRoute} />
       <div className="main">
         <Toolbar title={meta.title} subtitle={meta.subtitle} range={current.view === 'overview' ? range : undefined} onRange={setRange} scanning={snap.scanning} onRescan={rescan} onToggleAppearance={toggleAppearance} />
         <div className="content" data-route={current.view}>
-          {due && current.view !== 'review' && (
+          {due && !firstRun && current.view !== 'review' && (
             <p className="banner info" data-review-due>
               Your weekly review is due{daysOverdue(now, due) > 0 ? `, ${daysOverdue(now, due)} ${daysOverdue(now, due) === 1 ? 'day' : 'days'} ago` : ''}.{' '}
               <button className="link" onClick={() => setRoute({ view: 'review' })} data-action="start-review">Start it</button>
@@ -88,11 +108,13 @@ export function App() {
           {current.view === 'inbox' && <Inbox snap={snap} onQuickLook={setLook} />}
           {current.view === 'parked' && <Parked snap={snap} now={now} onQuickLook={setLook} />}
           {current.view === 'shipped' && <Shipped snap={snap} now={now} onQuickLook={setLook} />}
+          {current.view === 'settings' && <Settings snap={snap} first={firstRun} onFinish={() => { void window.dashboard.saveSettings({ onboarded: true }); setRoute(OVERVIEW); }} />}
           {current.view === 'review' && <Review snap={snap} now={now} state={review ?? newReview(snap.projects)} onState={setReview} onFinish={() => { setReview(undefined); setRoute(OVERVIEW); }} />}
         </div>
       </div>
     </div>
     {lookProject && <QuickLook snap={snap} project={lookProject} now={now} onClose={() => setLook(undefined)} onOpenDeepDive={(name) => setRoute({ view: 'project', name })} />}
     </TipProvider>
+    </NavContext.Provider>
   );
 }

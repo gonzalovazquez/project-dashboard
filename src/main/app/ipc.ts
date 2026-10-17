@@ -74,6 +74,7 @@ function patch(v: unknown): SettingsPatch {
     out.reviewDay = o.reviewDay;
   }
   if (o.reviewTime !== undefined) out.reviewTime = str(o.reviewTime, 'reviewTime', 5);
+  if (o.onboarded !== undefined) out.onboarded = bool(o.onboarded, 'onboarded');
   if (o.reviewReminder !== undefined) out.reviewReminder = bool(o.reviewReminder, 'reviewReminder');
   if (o.appearance !== undefined) {
     if (typeof o.appearance !== 'string' || !(APPEARANCES as string[]).includes(o.appearance)) throw new BadInput('Appearance must be system, light or dark.');
@@ -112,6 +113,7 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
   handle(CHANNELS.ignoreFolder, (name, ignored) => svc.ignoreFolder(str(name, 'name', 255), bool(ignored, 'ignored')));
   handle(CHANNELS.linkFolder, (name, id) => svc.linkFolder(str(name, 'name', 255), str(id, 'pageId', 100)));
   handle(CHANNELS.applyReview, (p) => svc.applyReview(plan(p)));
+  handle(CHANNELS.chooseFolder, () => svc.chooseFolder());
   handle(CHANNELS.getSettings, () => svc.getSettings());
   handle(CHANNELS.saveSettings, (p) => svc.saveSettings(patch(p)));
   handle(CHANNELS.setToken, (t) => svc.setToken(t === null ? null : str(t, 'token', 500)));

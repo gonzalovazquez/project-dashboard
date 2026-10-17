@@ -67,7 +67,7 @@ describe('settings, cache and merge', () => {
     expect(await store.load()).toEqual(defaultSettings());
     await store.save({ developmentFolder: '/Users/g/Code' });
     await store.save({ overrides: { a: 'p1' } });
-    expect(await createSettingsStore(path).load()).toEqual({ developmentFolder: '/Users/g/Code', overrides: { a: 'p1' }, ignored: [], appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, lastReviewAt: undefined });
+    expect(await createSettingsStore(path).load()).toEqual({ developmentFolder: '/Users/g/Code', overrides: { a: 'p1' }, ignored: [], appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: false, lastReviewAt: undefined });
     await store.save({ appearance: 'dark' });
     expect((await createSettingsStore(path).load()).appearance).toBe('dark');
   });
@@ -100,7 +100,7 @@ describe('settings, cache and merge', () => {
 });
 
 describe('renderer state', () => {
-  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, stageHistory: [], unlinkedPages: [], notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, ignored: [], tokenSource: 'none', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true }, ...over });
+  const snap = (over: Partial<Snapshot> = {}): Snapshot => ({ projects: [project({ name: 'a' })], scanning: false, stageHistory: [], unlinkedPages: [], notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, ignored: [], tokenSource: 'none', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: false }, ...over });
   it('adds and replaces projects as they stream in', () => {
     let s = applyUpdate(snap(), { kind: 'project', project: project({ name: 'b' }) })!;
     expect(s.projects.map((p) => p.name)).toEqual(['a', 'b']);
@@ -229,5 +229,17 @@ describe('trusted sender', () => {
     expect(isTrustedUrl('http://localhost:5174/', dev)).toBe(false);
     expect(isTrustedUrl('http://evil.test/', dev)).toBe(false);
     expect(isTrustedUrl(prod.indexFileUrl, dev)).toBe(false);
+  });
+});
+
+describe('renderer state: meta updates', () => {
+  it('replaces settings and unlinked pages and leaves projects alone', async () => {
+    const { applyUpdate } = await import('../src/renderer/src/state.js');
+    const prev = { projects: [project({ name: 'a' })], scanning: false, stageHistory: [], unlinkedPages: [], notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, ignored: [], tokenSource: 'none', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: false } } as unknown as Snapshot;
+    const next = applyUpdate(prev, { kind: 'meta', settings: { ...prev.settings, onboarded: true, ignored: ['x'] }, unlinkedPages: [{ id: 'u', title: 'T', url: 'https://n', stage: 'Beta' }] })!;
+    expect(next.settings).toMatchObject({ onboarded: true, ignored: ['x'] });
+    expect(next.unlinkedPages).toHaveLength(1);
+    expect(next.projects).toBe(prev.projects);
+    expect(applyUpdate(undefined, { kind: 'meta', settings: prev.settings, unlinkedPages: [] })).toBeUndefined();
   });
 });
