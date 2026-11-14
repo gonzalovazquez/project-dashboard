@@ -73,6 +73,8 @@ export type ProjectUpdate =
   | { kind: 'scan-started' }
   | { kind: 'project'; project: Project }
   | { kind: 'scan-finished'; snapshot: Snapshot }
+  /** Notion was pulled again without a folder scan, so its stages, focus and criteria may have changed. */
+  | { kind: 'synced'; snapshot: Snapshot }
   | { kind: 'notion'; notion: NotionStatus }
   /** Settings or the list of unlinked pages changed, for example after a save or a link. */
   | { kind: 'meta'; settings: PublicSettings; unlinkedPages: UnlinkedPage[] }
@@ -91,6 +93,8 @@ export interface SettingsPatch { developmentFolder?: string; overrides?: Record<
 export interface DashboardApi {
   getSnapshot(): Promise<Snapshot>;
   startScan(): Promise<void>;
+  /** Pulls Notion again without scanning folders, so edits made in Notion show up. Skipped while a scan runs. */
+  syncNotion(): Promise<void>;
   onProjectUpdate(listener: (update: ProjectUpdate) => void): () => void;
   /** Adds an unchecked ship criterion to the end of the project's Notion page. */
   addCriterion(name: string, text: string): Promise<Result>;
@@ -101,6 +105,8 @@ export interface DashboardApi {
   unpark(name: string): Promise<Result>;
   /** Moves a project whose criteria are all done to General Available and frees its focus slot. */
   markShipped(name: string): Promise<Result>;
+  /** Takes a shipped project back to In progress so it can be worked on again, and into focus when `focus` is true. */
+  reopen(name: string, focus: boolean): Promise<Result>;
   /** Creates a Notion page titled with the folder name, in Not started, and pairs the folder with it. */
   addToNotion(name: string): Promise<Result>;
   /** Folds an untracked folder into a project, so they are tracked as one. Rescans. */
@@ -129,6 +135,7 @@ export interface DashboardApi {
 export const CHANNELS = {
   getSnapshot: 'dashboard:getSnapshot',
   startScan: 'dashboard:startScan',
+  syncNotion: 'dashboard:syncNotion',
   addCriterion: 'dashboard:addCriterion',
   setCriterion: 'dashboard:setCriterion',
   promote: 'dashboard:promote',
@@ -136,6 +143,7 @@ export const CHANNELS = {
   kill: 'dashboard:kill',
   unpark: 'dashboard:unpark',
   markShipped: 'dashboard:markShipped',
+  reopen: 'dashboard:reopen',
   addToNotion: 'dashboard:addToNotion',
   groupFolder: 'dashboard:groupFolder',
   ungroupFolder: 'dashboard:ungroupFolder',

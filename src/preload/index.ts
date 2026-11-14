@@ -8,6 +8,7 @@ import { CHANNELS, type DashboardApi, type ProjectUpdate } from '../shared/ipc.j
 const api: DashboardApi = {
   getSnapshot: () => ipcRenderer.invoke(CHANNELS.getSnapshot),
   startScan: () => ipcRenderer.invoke(CHANNELS.startScan),
+  syncNotion: () => ipcRenderer.invoke(CHANNELS.syncNotion),
   onProjectUpdate(listener) {
     const wrapped = (_e: unknown, update: ProjectUpdate) => listener(update);
     ipcRenderer.on(CHANNELS.update, wrapped);
@@ -20,6 +21,7 @@ const api: DashboardApi = {
   kill: (name) => ipcRenderer.invoke(CHANNELS.kill, name),
   unpark: (name) => ipcRenderer.invoke(CHANNELS.unpark, name),
   markShipped: (name) => ipcRenderer.invoke(CHANNELS.markShipped, name),
+  reopen: (name, focus) => ipcRenderer.invoke(CHANNELS.reopen, name, focus),
   addToNotion: (name) => ipcRenderer.invoke(CHANNELS.addToNotion, name),
   groupFolder: (name, into) => ipcRenderer.invoke(CHANNELS.groupFolder, name, into),
   ungroupFolder: (name) => ipcRenderer.invoke(CHANNELS.ungroupFolder, name),

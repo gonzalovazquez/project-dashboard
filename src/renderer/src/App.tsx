@@ -56,17 +56,30 @@ export function App() {
   }, []);
 
   // Coming back to the app after a while rescans, so a missed file event never leaves stale numbers on screen.
+  // Otherwise it pulls Notion again, which is quick, so edits made there (focus, stage, parking) show up right away.
+  // While the window is open and visible, Notion is pulled again every so often for the same reason.
   const latest = useRef(snap);
   latest.current = snap;
   useEffect(() => {
     const STALE = 10 * 60_000;
+    const SYNC_GAP = 15_000;
+    const POLL = 90_000;
+    let lastSync = Date.now();
+    const sync = () => {
+      const s = latest.current;
+      if (!s || s.scanning || s.notion.state === 'not-configured' || Date.now() - lastSync < SYNC_GAP) return;
+      lastSync = Date.now();
+      void window.dashboard.syncNotion();
+    };
     const refocus = () => {
       const s = latest.current;
       const asked = takeRescanRequest();
-      if (s && !s.scanning && (asked || (s.scannedAt && Date.now() - Date.parse(s.scannedAt) > STALE))) void window.dashboard.startScan();
+      if (s && !s.scanning && (asked || (s.scannedAt && Date.now() - Date.parse(s.scannedAt) > STALE))) { lastSync = Date.now(); void window.dashboard.startScan(); }
+      else sync();
     };
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') sync(); }, POLL);
     window.addEventListener('focus', refocus);
-    return () => window.removeEventListener('focus', refocus);
+    return () => { window.removeEventListener('focus', refocus); clearInterval(timer); };
   }, []);
 
   // Time-based numbers are computed against the moment the data last changed, not on every render.

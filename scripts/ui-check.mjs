@@ -41,14 +41,14 @@ const load = async (variant, scheme = 'light', size = { width: 1280, height: 150
     const rec = (n, after) => async (...a) => { window.__calls.push([n, ...a]); after?.(...a); return { ok: true }; };
     const ok = async () => ({ ok: true });
     window.dashboard = {
-      getSnapshot: async () => s, startScan: async () => { window.__calls.push('startScan'); },
+      getSnapshot: async () => s, startScan: async () => { window.__calls.push('startScan'); }, syncNotion: async () => { window.__calls.push('syncNotion'); },
       onProjectUpdate: (l) => { listeners.push(l); return () => {}; },
       saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); Object.assign(s.settings, p); meta(); return { ok: true }; },
       getSettings: async () => s.settings, addCriterion: rec('addCriterion'), openIdea: rec('openIdea'), startNewProject: rec('startNewProject'), setCriterion: rec('setCriterion'),
       promote: rec('promote'), park: rec('park'), kill: rec('kill'), unpark: rec('unpark'), addToNotion: rec('addToNotion'),
       groupFolder: rec('groupFolder'), ungroupFolder: rec('ungroupFolder'),
       ignoreFolder: rec('ignoreFolder', (name, ignored) => { s.settings.ignored = ignored ? [...new Set([...s.settings.ignored, name])] : s.settings.ignored.filter((n) => n !== name); meta(); }),
-      linkFolder: rec('linkFolder'), markShipped: rec('markShipped'),
+      linkFolder: rec('linkFolder'), markShipped: rec('markShipped'), reopen: rec('reopen'),
       applyReview: async (plan) => { window.__calls.push(['applyReview', plan]); return { ok: true, value: { changed: plan.decisions.length, notesWritten: plan.decisions.length, notesFailed: [] } }; },
       setToken: rec('setToken', (t) => { s.settings.tokenSource = t ? 'keychain' : 'none'; meta(); }),
       chooseFolder: async () => { window.__calls.push(['chooseFolder']); return { ok: true, value: '/Users/gonzalo/Code' }; }, openLink: rec('openLink'),

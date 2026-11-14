@@ -114,6 +114,7 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
 
   handle(CHANNELS.getSnapshot, () => svc.getSnapshot());
   handle(CHANNELS.startScan, async () => { await svc.startScan(); });
+  handle(CHANNELS.syncNotion, async () => { await svc.syncNotion(); });
   handle(CHANNELS.addCriterion, (name, text) => svc.addCriterion(str(name, 'name', 255), str(text, 'text', CRITERION_MAX)));
   handle(CHANNELS.setCriterion, (name, blockId, checked) => svc.setCriterion(str(name, 'name', 255), str(blockId, 'blockId', 100), bool(checked, 'checked')));
   handle(CHANNELS.promote, (name, s) => svc.promote(str(name, 'name', 255), swap(s)));
@@ -121,6 +122,7 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
   handle(CHANNELS.kill, (name) => svc.kill(str(name, 'name', 255)));
   handle(CHANNELS.unpark, (name) => svc.unpark(str(name, 'name', 255)));
   handle(CHANNELS.markShipped, (name) => svc.markShipped(str(name, 'name', 255)));
+  handle(CHANNELS.reopen, (name, focus) => svc.reopen(str(name, 'name', 255), bool(focus, 'focus')));
   handle(CHANNELS.addToNotion, (name) => svc.addToNotion(str(name, 'name', 255)));
   handle(CHANNELS.groupFolder, (name, into) => svc.groupFolder(str(name, 'name', 255), str(into, 'into', 255)));
   handle(CHANNELS.ungroupFolder, (name) => svc.ungroupFolder(str(name, 'name', 255)));

@@ -1,6 +1,6 @@
 import type { ComplexityLevel, Project, PulseLevel, Stage } from '../../../shared/types.js';
 import { WIP_LIMIT } from '../../../shared/types.js';
-import { focusProjects, isLive, progress, stageDays } from '../../../shared/rules.js';
+import { focusProjects, isLive, isShipped, progress, stageDays } from '../../../shared/rules.js';
 
 const DAY = 86_400_000;
 const title = (p: Project) => p.notion?.title ?? p.name;
@@ -113,6 +113,8 @@ export interface Actions {
   park: boolean;
   kill: boolean;
   unpark: boolean;
+  /** Shipped projects can be reopened for another round of work. */
+  reopen: boolean;
   /** Focus projects that could be parked to make room. */
   focus: Array<{ name: string; title: string }>;
 }
@@ -126,6 +128,7 @@ export function actionsFor(ps: Project[], name: string): Actions {
     park: live,
     kill: live,
     unpark: p?.notion?.life === 'parked',
+    reopen: !!p && isShipped(p),
     focus,
   };
 }

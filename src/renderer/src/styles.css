@@ -297,6 +297,8 @@ th.r, td.r { text-align: right; }
 .plan, .blockers { margin: 0; padding-left: 18px; }
 .blockers { color: var(--orange); }
 .decisions .fld { flex: 1; }
+.fld.check { flex-direction: row; align-items: center; gap: 6px; }
+.fld.check input { padding: 0; box-shadow: none; background: none; }
 
 /* ---- settings, setup, crash ---- */
 .setrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
