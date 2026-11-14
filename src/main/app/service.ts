@@ -1,15 +1,15 @@
 import { join } from 'node:path';
-import type { Criterion, NotionInfo, Project, ScanResult, StagePoint } from '../../shared/types.js';
+import type { Criterion, NotionInfo, Project, ScanResult, Stage, StagePoint } from '../../shared/types.js';
 import {
   fail, ok,
   type Appearance, type LinkKind, type NotionStatus, type ProjectUpdate, type PublicSettings, type Result, type SettingsPatch, type Snapshot, type SwapChoice, type UnlinkedPage,
 } from '../../shared/ipc.js';
-import { kill, park, promote, ship, unpark } from '../../shared/rules.js';
+import { kill, park, promote, reopen, ship, unpark } from '../../shared/rules.js';
 import { applyReview, reviewNote, type ReviewOutcome, type ReviewPlan } from '../../shared/review.js';
 import { claudeNewChatUrl, IDEA_MAX, ideaRow, newProjectPrompt } from '../../shared/planning.js';
 import type { NotionBackend } from '../notion/backend.js';
-import type { PageChange } from '../notion/gateway.js';
-import { hasChanges } from '../notion/schema.js';
+import type { LoadedPage, PageChange } from '../notion/gateway.js';
+import { hasChanges, type SchemaDiff } from '../notion/schema.js';
 import { detectStageChanges, loadSnapshot, saveSnapshot } from '../notion/stage.js';
 import type { Cache } from './cache.js';
 import { localDate, stageCounts, type HistoryStore } from './history.js';
@@ -42,6 +42,8 @@ export interface ServiceDeps {
 type RuleOutcome = { ok: true; projects: Project[] } | { ok: false; error: Extract<Result, { ok: false }>['error'] };
 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+/** How long a property the app wrote wins over what a Notion pull says. */
+const RECENT_WRITE_MS = 30_000;
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** What changed on a page between two versions, and how to undo it. Rules and the weekly review change focus, stage and lifecycle fields. */
@@ -66,6 +68,12 @@ export class DashboardService {
   private stageHistory: StagePoint[] = [];
   private unlinked: Array<UnlinkedPage & { info: NotionInfo }> = [];
   private running?: Promise<void>;
+  private syncing?: Promise<void>;
+  /**
+   * Property changes the app wrote recently, by page. Notion's database query can return the old values for a
+   * little while after a write, so a pull in that window keeps what the app just wrote instead of flipping back.
+   */
+  private recentWrites = new Map<string, { change: PageChange; at: number }>();
   private listeners = new Set<(u: ProjectUpdate) => void>();
   private backend?: { token: string; api: NotionBackend };
 
@@ -157,14 +165,7 @@ export class DashboardService {
       } else if (!pulled || 'error' in pulled) {
         this.notion = { state: 'error', message: `Could not reach Notion: ${pulled && 'error' in pulled ? pulled.error : 'unknown error'}. Showing the last known data.` };
       } else {
-        infoByFolder = matchNotion(scans.map((s) => s.name), pulled.loaded, settings.overrides).infoByFolder;
-        const matched = new Set([...infoByFolder.values()].map((i) => i.pageId));
-        this.unlinked = pulled.loaded.flatMap((l) => (l.info && !matched.has(l.page.id) ? [{ ...ideaRow(l.page.id, l.info), url: l.info.url, info: l.info }] : []));
-        const schemaMissing = hasChanges(pulled.diff);
-        this.notion = schemaMissing
-          ? { state: 'schema-missing', message: 'The Notion database is missing properties the app needs. Run npm run notion:setup to review them, then npm run notion:setup -- --apply to add them, then rescan.', syncedAt: now.toISOString(), pages: pulled.loaded.length }
-          : { state: 'connected', syncedAt: now.toISOString(), pages: pulled.loaded.length };
-        if (!schemaMissing) await this.stampStageChanges(pulled.backend, pulled.loaded.flatMap((l) => (l.info ? [l.info] : [])), infoByFolder, now);
+        infoByFolder = await this.usePull(pulled, scans.map((s) => s.name), settings.overrides, now);
       }
 
       this.projects = mergeProjects(scans, infoByFolder);
@@ -179,6 +180,71 @@ export class DashboardService {
       this.scanning = false;
       this.emit({ kind: 'scan-finished', snapshot: await this.getSnapshot() });
     }
+  }
+
+  /** Pairs pulled pages with folders, and updates the Notion status and the unlinked pages to match. */
+  private async usePull(pulled: { backend: NotionBackend; loaded: LoadedPage[]; diff: SchemaDiff }, names: string[], overrides: Record<string, string>, now: Date): Promise<Map<string, NotionInfo>> {
+    this.keepRecentWrites(pulled.loaded);
+    const infoByFolder = matchNotion(names, pulled.loaded, overrides).infoByFolder;
+    const matched = new Set([...infoByFolder.values()].map((i) => i.pageId));
+    this.unlinked = pulled.loaded.flatMap((l) => (l.info && !matched.has(l.page.id) ? [{ ...ideaRow(l.page.id, l.info), url: l.info.url, info: l.info }] : []));
+    const schemaMissing = hasChanges(pulled.diff);
+    this.notion = schemaMissing
+      ? { state: 'schema-missing', message: 'The Notion database is missing properties the app needs. Run npm run notion:setup to review them, then npm run notion:setup -- --apply to add them, then rescan.', syncedAt: now.toISOString(), pages: pulled.loaded.length }
+      : { state: 'connected', syncedAt: now.toISOString(), pages: pulled.loaded.length };
+    if (!schemaMissing) await this.stampStageChanges(pulled.backend, pulled.loaded.flatMap((l) => (l.info ? [l.info] : [])), infoByFolder, now);
+    return infoByFolder;
+  }
+
+  /** Lays what the app wrote in the last half minute over pulled pages that may not show it yet. */
+  private keepRecentWrites(loaded: LoadedPage[]) {
+    const cutoff = Date.now() - RECENT_WRITE_MS;
+    for (const [id, w] of this.recentWrites) if (w.at < cutoff) this.recentWrites.delete(id);
+    for (const l of loaded) {
+      const w = l.info && this.recentWrites.get(l.page.id);
+      if (!w || !l.info) continue;
+      const c = w.change;
+      const und = (v: string | null | undefined, was: string | undefined) => (v === undefined ? was : v ?? undefined);
+      l.info = {
+        ...l.info,
+        ...(c.focus !== undefined ? { focus: c.focus } : {}),
+        ...(c.stage !== undefined ? { stage: c.stage } : {}),
+        ...(c.life !== undefined ? { life: c.life } : {}),
+        stageChangedAt: und(c.stageChangedAt, l.info.stageChangedAt),
+        parkReason: und(c.parkReason, l.info.parkReason),
+        revisitOn: und(c.revisitOn, l.info.revisitOn),
+      };
+    }
+  }
+
+  /**
+   * Pulls Notion again without reading the folders, so changes made on the Notion side (focus, stage, lifecycle,
+   * criteria) show up within moments instead of at the next full scan. Does nothing while a scan runs.
+   */
+  syncNotion(): Promise<void> {
+    if (!this.syncing) this.syncing = this.doSync().finally(() => { this.syncing = undefined; });
+    return this.syncing;
+  }
+
+  private async doSync(): Promise<void> {
+    if (this.scanning || this.running) return;
+    const { token } = await this.d.tokens.get();
+    if (!token) return;
+    const settings = await this.d.settings.load();
+    const pulled = await this.pullNotion(token);
+    // A scan that started meanwhile pulls Notion itself and replaces everything when it finishes.
+    if (this.scanning || this.running) return;
+    const now = this.now();
+    if ('error' in pulled) {
+      this.notion = { state: 'error', message: `Could not reach Notion: ${pulled.error}. Showing the last known data.` };
+      this.emit({ kind: 'notion', notion: this.notion });
+      return;
+    }
+    const infoByFolder = await this.usePull(pulled, this.projects.map((p) => p.name), settings.overrides, now);
+    if (this.scanning || this.running) return;
+    this.projects = this.projects.map(({ notion: _old, ...scan }) => toProject(scan, infoByFolder.get(scan.name)));
+    await this.d.cache.save({ scannedAt: this.scannedAt, projects: this.projects });
+    this.emit({ kind: 'synced', snapshot: await this.getSnapshot() });
   }
 
   /** Writes today's date to Stage changed for pages whose status moved since the last snapshot. All or nothing: if any write fails the snapshot is kept so the next scan retries. */
@@ -228,6 +294,7 @@ export class DashboardService {
       try {
         await b.backend.setProperties(e.pageId, e.change);
         done.push(e);
+        this.recentWrites.set(e.pageId, { change: { ...this.recentWrites.get(e.pageId)?.change, ...e.change }, at: Date.now() });
       } catch (err) {
         let reverted = true;
         for (const r of done.reverse()) { try { await b.backend.setProperties(r.pageId, r.revert); } catch { reverted = false; } }
@@ -276,15 +343,32 @@ export class DashboardService {
       }[out.error];
       return { ok: false, error: { code: out.error, message } };
     });
-    // The page just changed stage, so make the stage snapshot agree and the next scan does not stamp it a second time.
-    if (r.ok && p?.notion) {
-      try {
-        const snap = await loadSnapshot(this.d.stageSnapshotPath);
-        snap[p.notion.pageId] = { stage: 'General Available', seenAt: this.now().toISOString() };
-        await saveSnapshot(this.d.stageSnapshotPath, snap);
-      } catch { /* the worst case is one repeated stamp with the same date */ }
-    }
+    if (r.ok && p?.notion) await this.noteStage(p.notion.pageId, 'General Available');
     return r;
+  }
+
+  /** Takes a shipped project back to In progress, and into focus when asked and a slot is free. */
+  async reopen(name: string, focus: boolean): Promise<Result> {
+    const p = this.projects.find((x) => x.name === name);
+    const label = p?.notion?.title ?? name;
+    const r = await this.applyRule((ps) => {
+      const out = reopen(ps, name, this.now(), focus);
+      if (out.ok) return out;
+      return out.error === 'full'
+        ? { ok: false, error: { code: 'full', message: `Focus is full (${out.focus.length} of 3). Reopen it without focus, or park a focus project first.`, focus: out.focus.map((x) => x.name) } }
+        : { ok: false, error: { code: 'not-eligible', message: `${label} cannot be reopened. Only shipped, active projects can.` } };
+    });
+    if (r.ok && p?.notion) await this.noteStage(p.notion.pageId, 'In progress');
+    return r;
+  }
+
+  /** The page just changed stage, so make the stage snapshot agree and the next scan does not stamp it a second time. */
+  private async noteStage(pageId: string, stage: Stage) {
+    try {
+      const snap = await loadSnapshot(this.d.stageSnapshotPath);
+      snap[pageId] = { stage, seenAt: this.now().toISOString() };
+      await saveSnapshot(this.d.stageSnapshotPath, snap);
+    } catch { /* the worst case is one repeated stamp with the same date */ }
   }
 
   async unpark(name: string): Promise<Result> {
