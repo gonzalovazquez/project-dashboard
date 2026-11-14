@@ -1,6 +1,6 @@
 import type { NotionStatus } from '../../../shared/ipc.js';
 import type { Criterion, Project } from '../../../shared/types.js';
-import { flags, forecast, health, healthParts, progress, stageDays } from '../../../shared/rules.js';
+import { flags, forecast, health, healthParts, progress, stageDays, nextStep } from '../../../shared/rules.js';
 import { niceTicks, SERIES_TOKENS, OTHER_TOKEN } from './charts.js';
 import { ago, fmtDate, plural, sum } from './format.js';
 import type { Kpi } from './overview.js';
@@ -161,10 +161,10 @@ export function kickoffPrompt(p: Project, now: Date): string {
     n ? `Stage: ${n.stage}, ${plural(stageDays(p, now), 'day')} in this stage` : 'Stage: not tracked in Notion',
     total ? `Progress: ${total - open.length} of ${total} ship criteria are done` : 'Progress: no ship criteria are defined',
     '',
-    `Next action: ${n?.nextAction ?? 'none is set. Decide on one small thing to finish first.'}`,
+    `Next: ${nextStep(p) ?? 'no ship criteria are defined. Agree on what has to be true before this ships, and add those as to-dos on the Notion page.'}`,
   ];
   if (open.length) { lines.push('', 'Open ship criteria:', ...open.map((c) => `- ${c.title}${c.hours ? ` (${c.hours}h)` : ''}`)); }
-  lines.push('', 'Start with the next action. Make routine decisions yourself and stop only for a real blocker. When you finish, summarize what changed and which criteria are now met.');
+  lines.push('', 'Start with the next criterion. Make routine decisions yourself and stop only for a real blocker. When you finish, summarize what changed and which criteria are now met.');
   return lines.join('\n');
 }
 

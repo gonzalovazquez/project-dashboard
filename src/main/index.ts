@@ -117,7 +117,10 @@ function startWatching(service: DashboardService) {
 }
 
 void app.whenReady().then(async () => {
-  session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  // Deny everything except writing to the clipboard (Copy kickoff prompt), and only from the app's own page.
+  // Reading the clipboard stays denied.
+  session.defaultSession.setPermissionRequestHandler((_wc, perm, cb, details) =>
+    cb(perm === 'clipboard-sanitized-write' && trustedUrl(details.requestingUrl ?? '')));
   const service = createService();
   await service.init();
   registerIpc(ipcMain, service, {

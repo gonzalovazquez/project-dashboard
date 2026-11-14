@@ -13,7 +13,7 @@ const api: DashboardApi = {
     ipcRenderer.on(CHANNELS.update, wrapped);
     return () => { ipcRenderer.removeListener(CHANNELS.update, wrapped); };
   },
-  setNextAction: (name, text) => ipcRenderer.invoke(CHANNELS.setNextAction, name, text),
+  addCriterion: (name, text) => ipcRenderer.invoke(CHANNELS.addCriterion, name, text),
   setCriterion: (name, blockId, checked) => ipcRenderer.invoke(CHANNELS.setCriterion, name, blockId, checked),
   promote: (name, swap) => ipcRenderer.invoke(CHANNELS.promote, name, swap),
   park: (name, reason, revisitOn) => ipcRenderer.invoke(CHANNELS.park, name, reason, revisitOn),

@@ -8,14 +8,14 @@ import type { SettingsStore, StoredSettings } from '../src/main/app/settings.js'
 import { createGateway } from '../src/main/notion/gateway.js';
 import { diffSchema } from '../src/main/notion/schema.js';
 import { saveSnapshot, type StageSnapshot } from '../src/main/notion/stage.js';
-import { completeSchema, liveSchema, makeFakeNotion, page, todo } from './fakeNotion.js';
+import { completeSchema, liveSchema, makeFakeNotion, page, todo, heading, para } from './fakeNotion.js';
 import { NOW, project, tmp } from './helpers.js';
 
 export interface HarnessOptions {
   token?: string | null;
   scans?: ScanResult[];
   pages?: Array<ReturnType<typeof page>>;
-  blocks?: Record<string, ReturnType<typeof todo>[]>;
+  blocks?: Record<string, Array<ReturnType<typeof todo> | ReturnType<typeof heading> | ReturnType<typeof para>>>;
   schema?: 'complete' | 'live';
   folderExists?: boolean;
   cached?: Project[];
@@ -94,12 +94,12 @@ export function board() {
   const mk = (id: string, title: string, stage: string, focus: boolean, extra: Record<string, unknown> = {}) =>
     page(id, title, stage, { Focus: { checkbox: focus }, Lifecycle: { select: { name: 'Active' } }, 'Stage changed': { date: { start: '2026-09-20' } }, ...extra });
   const pages = [
-    mk('pa', 'alpha', 'Beta', true, { 'Next action': { rich_text: [{ plain_text: 'Ship it' }] } }),
+    mk('pa', 'alpha', 'Beta', true),
     mk('pb', 'beta', 'In progress', true),
     mk('pc', 'gamma', 'Beta', true),
     mk('pd', 'delta', 'Beta', false),
   ];
-  const blocks = { pa: [todo('a1', 'Core', true), todo('a2', 'Deploy (3h)')], pb: [], pc: [], pd: [todo('d1', 'One'), todo('d2', 'Two')] };
+  const blocks = { pa: [heading('ha', 'Planning'), todo('a1', 'Core', true), todo('a2', 'Deploy (3h)'), para('pa-note', 'Notes after the list')], pb: [], pc: [], pd: [heading('hd', 'Planning'), todo('d1', 'One'), todo('d2', 'Two')] };
   return { scans, pages, blocks };
 }
 

@@ -2,8 +2,8 @@
 
 A macOS desktop app for finishing local projects. It scans your Development folder, reads each project's status from a
 Notion database, and shows an executive summary of every project plus a deep dive on the (at most three) you are focusing
-on. It exists to push projects across the line: a limit of three, a ship checklist for each, one next action, stall
-flags, and a weekly review that forces a decision.
+on. It exists to push projects across the line: a limit of three, a ship checklist for each whose first open item is the next step,
+stall flags, and a weekly review that forces a decision.
 
 The interface was designed in [`docs/ui-mockup.html`](docs/ui-mockup.html). The Notion setup is in
 [`docs/notion-schema.md`](docs/notion-schema.md) (the properties) and [`docs/notion-setup.md`](docs/notion-setup.md) (the step-by-step guide), the chart colors in [`docs/chart-colors.md`](docs/chart-colors.md).
@@ -67,7 +67,7 @@ npm run notion:pull -- ~/Development
 
 ```
 npm run notion:setup               # dry run, changes nothing
-npm run notion:setup -- --apply    # adds Focus, Lifecycle, Next action, Stage changed, Park reason, Revisit on
+npm run notion:setup -- --apply    # adds Focus, Lifecycle, Stage changed, Park reason, Revisit on
 ```
 
 *Worked when:* the dry run says nothing is missing and the app's Notion banner is gone.
@@ -90,8 +90,8 @@ troubleshooting table in [`docs/notion-setup.md`](docs/notion-setup.md) covers t
 | Screen | What it is for |
 |---|---|
 | **Overview** | The executive summary: one headline, six tiles, forecast ship dates, commits per week, projects by stage over time, progress against complexity, time in stage, and a sortable portfolio table. Click a focus project to open it |
-| **Deep dive** | One focus project in detail: next action, burnup chart with a forecast band, the ship checklist (ticking writes to Notion), commit heatmap, health breakdown, languages, details and recent commits, and **Mark shipped** once every criterion is done |
-| **Weekly review** | Four steps: look back at the week, decide on every stalled project (keep going, park or kill), pick the next three, set a next action for each. Applying is all or nothing and leaves a dated note on each reviewed Notion page. A notification reminds you on the day and time you choose |
+| **Deep dive** | One focus project in detail: burnup chart with a forecast band, the ship checklist (ticking writes to Notion, adding appends a to-do to the page, and the first open item is tagged Next), commit heatmap, health breakdown, languages, details and recent commits, and **Mark shipped** once every criterion is done |
+| **Weekly review** | Four steps: look back at the week, decide on every stalled project (keep going, park or kill), pick the next three, see each one's next criterion and add one where it has none. Applying is all or nothing and leaves a dated note on each reviewed Notion page. A notification reminds you on the day and time you choose |
 | **All projects** | Every folder, filtered by state, activity, complexity or technology, with search. Click a row for a quick look |
 | **Inbox** | Folders with no Notion page: add one, link to a page that already exists, group it into another project (the same product in several folders), or ignore it |
 | **Parked / Shipped** | Parked projects with the reason and revisit date (due ones are marked), and projects that reached General Available |
@@ -108,7 +108,7 @@ Staged and uncommitted changes show up on the next commit, add or rescan.
   optional estimate such as `(3h)`.
 - The forecast is the open criteria divided by the criteria finished in the last four weeks (floor of 0.25 a week), with a
   band of 0.7 to 1.5 times that.
-- A project is flagged after 30 days In progress or 45 days in Beta, with no next action, or with no commits (14 days for
+- A project is flagged after 30 days In progress or 45 days in Beta, with no ship criteria, or with no commits (14 days for
   focus projects, 21 for others).
 - Only a project whose criteria are all done can be marked shipped. A project with no criteria has no definition of done.
 
@@ -138,7 +138,7 @@ and the cache. The interface reaches it only through the bridge in `src/preload/
 | Call | What it does |
 |---|---|
 | `getSnapshot`, `startScan`, `onProjectUpdate` | Read the current state, rescan, and receive each change as it happens |
-| `setNextAction`, `setCriterion` | Write a next action or a checklist item to Notion |
+| `addCriterion`, `setCriterion` | Add a ship criterion to the Notion page, or tick one |
 | `promote`, `park`, `kill`, `unpark`, `markShipped` | Change focus, lifecycle and stage. The pure rules run first; a rejected rule writes nothing |
 | `applyReview` | A whole weekly review in one step, or none of it, then the dated notes |
 | `addToNotion`, `linkFolder`, `groupFolder`, `ungroupFolder`, `ignoreFolder` | Inbox actions |

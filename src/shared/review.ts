@@ -5,8 +5,9 @@ const DAY = 86_400_000;
 
 /** One decision about one project, made in the weekly review. */
 export type ReviewDecision =
-  | { name: string; action: 'keep'; nextAction?: string }
-  | { name: string; action: 'focus'; nextAction?: string }
+  /** `addCriterion` adds a ship criterion to the project's Notion page as part of the review. */
+  | { name: string; action: 'keep'; addCriterion?: string }
+  | { name: string; action: 'focus'; addCriterion?: string }
   | { name: string; action: 'park'; reason: string; revisitOn: string }
   | { name: string; action: 'kill' };
 
@@ -22,8 +23,8 @@ const label = (p: Project) => p.notion?.title ?? p.name;
 
 /**
  * Applies a whole review to the projects, or rejects all of it. Parks and kills run first so their
- * focus slots are free, then next actions are set, then projects take focus. At most three end up
- * in focus. Nothing here writes anywhere: the caller writes the difference.
+ * focus slots are free, then projects take focus. At most three end up in focus. Nothing here writes
+ * anywhere: the caller writes the difference, and adds any new criteria, which need Notion block ids.
  */
 export function applyReview(ps: Project[], plan: ReviewPlan): ReviewResult {
   const seen = new Set<string>();
@@ -41,12 +42,6 @@ export function applyReview(ps: Project[], plan: ReviewPlan): ReviewResult {
     if (d.action === 'park') next = park(next, d.name, d.reason.trim(), d.revisitOn);
     else if (d.action === 'kill') next = kill(next, d.name);
   }
-  const edit = (name: string, nextAction: string | undefined) => {
-    const text = nextAction?.trim();
-    if (text === undefined) return;
-    next = next.map((p) => (p.name === name && p.notion ? { ...p, notion: { ...p.notion, nextAction: text || undefined } } : p));
-  };
-  for (const d of plan.decisions) if (d.action === 'keep' || d.action === 'focus') edit(d.name, d.nextAction);
   for (const d of plan.decisions) {
     if (d.action !== 'focus') continue;
     const r = promote(next, d.name);
@@ -64,6 +59,8 @@ export function applyReview(ps: Project[], plan: ReviewPlan): ReviewResult {
 export interface ReviewOutcome {
   /** Projects whose Notion properties changed. */
   changed: number;
+  /** Ship criteria added to Notion pages. */
+  criteriaAdded: number;
   /** Dated notes written to project pages, and the projects whose note could not be written. */
   notesWritten: number;
   notesFailed: string[];
@@ -75,8 +72,8 @@ export function reviewNote(d: ReviewDecision, date: string): string {
   switch (d.action) {
     case 'park': return `${head}Parked until ${d.revisitOn}. Reason: ${d.reason.trim()}`;
     case 'kill': return `${head}Killed.`;
-    case 'focus': return `${head}Moved into focus.${d.nextAction?.trim() ? ` Next action: ${d.nextAction.trim()}` : ''}`;
-    case 'keep': return `${head}Kept.${d.nextAction?.trim() ? ` Next action: ${d.nextAction.trim()}` : ''}`;
+    case 'focus': return `${head}Moved into focus.${d.addCriterion?.trim() ? ` Added criterion: ${d.addCriterion.trim()}` : ''}`;
+    case 'keep': return `${head}Kept.${d.addCriterion?.trim() ? ` Added criterion: ${d.addCriterion.trim()}` : ''}`;
   }
 }
 

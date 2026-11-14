@@ -180,14 +180,15 @@ describe('highlights', () => {
     expect(i.lead).toBe('Dark Factory is in focus but quiet.');
     expect(i.text).toBe('No commits in 20 days.');
   });
-  it('lists active projects with no next action', () => {
-    const i = buildOverview(sampleProjects(), NOW).insights.find((x) => x.id === 'no-next')!;
-    expect(i.lead).toBe('2 active projects have no next action:');
+  const withoutCriteria = (names: string[]) => sampleProjects().map((p) => (names.includes(p.name) ? { ...p, notion: { ...p.notion!, criteria: [] } } : p));
+  it('lists active projects with no ship criteria', () => {
+    expect(buildOverview(sampleProjects(), NOW).insights.find((x) => x.id === 'no-criteria')).toBeUndefined();
+    const i = buildOverview(withoutCriteria(['chicken-friends', 'sdlc-ai']), NOW).insights.find((x) => x.id === 'no-criteria')!;
+    expect(i.lead).toBe('2 active projects have no ship criteria:');
     expect(i.text).toBe('Flockchat, Agentic Development Environment.');
   });
   it('uses the singular for one project', () => {
-    const one = sampleProjects().map((p) => (p.name === 'sdlc-ai' ? { ...p, notion: { ...p.notion!, nextAction: 'x' } } : p));
-    expect(buildOverview(one, NOW).insights.find((x) => x.id === 'no-next')!.lead).toBe('1 active project has no next action:');
+    expect(buildOverview(withoutCriteria(['sdlc-ai']), NOW).insights.find((x) => x.id === 'no-criteria')!.lead).toBe('1 active project has no ship criteria:');
   });
   it('reports the commit trend in the right direction', () => {
     const up = buildInsights([project({ name: 'a' })], NOW, { c1: 12, c0: 10 }).find((i) => i.id === 'commits')!;

@@ -6,12 +6,22 @@ const DAY = 86_400_000;
 export const REVIEW_DAYS = { 'In progress': 30, 'Beta': 45 } as const;
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * DAY);
 
-export interface Flag { code: 'stuck-beta' | 'stuck-progress' | 'no-next' | 'no-commits' | 'quiet'; text: string }
+export interface Flag { code: 'stuck-beta' | 'stuck-progress' | 'no-criteria' | 'no-commits' | 'quiet'; text: string }
 export interface Forecast { remaining: number; velocity: number; weeks: number; date: string; low: string; high: string; hoursLeft: number }
 
 const criteria = (p: Project): Criterion[] => p.notion?.criteria ?? [];
 export const doneCount = (p: Project) => criteria(p).filter((c) => c.done).length;
 export const progress = (p: Project): number | undefined => (criteria(p).length ? doneCount(p) / criteria(p).length : undefined);
+
+/** The next thing to do on a project: its first open ship criterion, in page order. */
+export const nextCriterion = (p: Project): Criterion | undefined => criteria(p).find((c) => !c.done);
+
+/** The next step in words: the first open criterion, shipping once every criterion is done, or nothing when there are none. */
+export function nextStep(p: Project): string | undefined {
+  const c = nextCriterion(p);
+  if (c) return c.title;
+  return criteria(p).length ? 'Every criterion is done. Mark it shipped.' : undefined;
+}
 
 /** Tracked, active, and not yet shipped. */
 export const isLive = (p: Project) => !!p.notion && p.notion.life === 'active' && p.notion.stage !== 'General Available';
@@ -43,7 +53,7 @@ export function flags(p: Project, now: Date): Flag[] {
   const days = stageDays(p, now);
   if (p.notion.stage === 'Beta' && days > REVIEW_DAYS.Beta) out.push({ code: 'stuck-beta', text: `In Beta for ${days} days` });
   if (p.notion.stage === 'In progress' && days > REVIEW_DAYS['In progress']) out.push({ code: 'stuck-progress', text: `In progress for ${days} days` });
-  if (!p.notion.nextAction) out.push({ code: 'no-next', text: 'No next action' });
+  if (p.notion.criteria.length === 0) out.push({ code: 'no-criteria', text: 'No ship criteria' });
   const idle = p.pulse.lastActivityDays;
   if (idle !== null) {
     if (p.notion.focus && idle > 14) out.push({ code: 'no-commits', text: `No commits in ${idle} days` });

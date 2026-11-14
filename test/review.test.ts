@@ -5,7 +5,7 @@ import { project } from './helpers.js';
 
 const mk = (name: string, notion: Record<string, unknown> = {}) => project({ name }, { ...notion });
 const board = () => [
-  mk('a', { focus: true, nextAction: 'x' }), mk('b', { focus: true }), mk('c', { focus: true }),
+  mk('a', { focus: true }), mk('b', { focus: true }), mk('c', { focus: true }),
   mk('d'), mk('e'), mk('p', { life: 'parked' }), mk('s', { stage: 'General Available' }),
 ];
 const run = (decisions: ReviewDecision[], ps = board()) => applyReview(ps, { decisions });
@@ -30,17 +30,11 @@ describe('applyReview', () => {
     expect(r).toMatchObject({ ok: false, error: { code: 'full', name: 'd' } });
     expect(ps).toEqual(board());
   });
-  it('sets and clears next actions, trimmed, only where given', () => {
-    const r = run([{ name: 'a', action: 'keep', nextAction: '  Ship it  ' }, { name: 'b', action: 'keep', nextAction: '   ' }, { name: 'c', action: 'keep' }]);
+  it('leaves criteria to the caller, which needs Notion block ids to add them', () => {
+    const ps = board();
+    const r = run([{ name: 'a', action: 'keep', addCriterion: 'Ship it' }], ps);
     if (!r.ok) throw new Error('rejected');
-    expect(r.projects.find((p) => p.name === 'a')!.notion!.nextAction).toBe('Ship it');
-    expect(r.projects.find((p) => p.name === 'b')!.notion!.nextAction).toBeUndefined();
-    expect(r.projects.find((p) => p.name === 'c')!.notion!.nextAction).toBeUndefined();
-  });
-  it('lets a promoted project get its next action in the same review', () => {
-    const r = run([{ name: 'a', action: 'park', reason: 'r', revisitOn: '2026-11-01' }, { name: 'd', action: 'focus', nextAction: 'Start' }]);
-    if (!r.ok) throw new Error('rejected');
-    expect(r.projects.find((p) => p.name === 'd')!.notion).toMatchObject({ focus: true, nextAction: 'Start' });
+    expect(r.projects).toEqual(ps);
   });
   it.each([
     ['unknown project', [{ name: 'zzz', action: 'kill' }], 'not-found'],

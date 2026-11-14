@@ -20,6 +20,7 @@ export interface FakeNotion {
 export function makeFakeNotion(pageSize = 2): FakeNotion {
   const f: FakeNotion = { pages: [], blocks: {}, dataSource: { properties: {} }, calls: [], queries: 0, api: undefined as unknown as NotionApi, failNext: () => {} };
   const failures = new Map<string, string>();
+  let created = 0;
   f.failNext = (op, message = 'boom') => { failures.set(op, message); };
   const guard = (op: string) => { const m = failures.get(op); if (m) { failures.delete(op); throw new Error(m); } };
   const write = (op: string, args: any, result: any = {}) => { guard(op); f.calls.push({ op, args }); return result; };
@@ -39,8 +40,13 @@ export function makeFakeNotion(pageSize = 2): FakeNotion {
       create: async (a) => write('pages.create', a, { id: 'new-page', url: 'https://notion.so/new-page' }),
     },
     blocks: {
-      children: { list: async (a) => paginate(f.blocks[a.block_id] ?? [], a.start_cursor), append: async (a) => write('blocks.append', a) },
+      children: {
+        list: async (a) => paginate(f.blocks[a.block_id] ?? [], a.start_cursor),
+        // Answers like Notion: the created blocks, with ids and rich text as plain text.
+        append: async (a) => write('blocks.append', a, { results: a.children.map((c: any) => ({ ...c, id: `new-block-${++created}`, last_edited_time: '2026-10-20T00:00:00Z', [c.type]: { ...c[c.type], rich_text: c[c.type].rich_text.map((t: any) => ({ plain_text: t.text.content })) } })) }),
+      },
       update: async (a) => write('blocks.update', a),
+      delete: async (a) => write('blocks.delete', a),
     },
   };
   return f;
@@ -49,6 +55,9 @@ export function makeFakeNotion(pageSize = 2): FakeNotion {
 export const todo = (id: string, text: string, checked = false, edited = '2026-10-01T00:00:00Z') => ({
   id, type: 'to_do', last_edited_time: edited, to_do: { rich_text: [{ plain_text: text }], checked },
 });
+
+export const heading = (id: string, text: string, level: 1 | 2 | 3 = 2) => ({ id, type: `heading_${level}`, [`heading_${level}`]: { rich_text: [{ plain_text: text }] } });
+export const para = (id: string, text: string) => ({ id, type: 'paragraph', paragraph: { rich_text: [{ plain_text: text }] } });
 
 export const page = (id: string, title: string, status: string, extra: Record<string, any> = {}) => ({
   id, url: `https://notion.so/${id}`, created_time: '2026-08-01T00:00:00Z',
@@ -64,6 +73,6 @@ export const completeSchema = () => ({
     ...liveSchema().properties,
     Focus: { type: 'checkbox' },
     Lifecycle: { type: 'select', select: { options: [{ id: '1', name: 'Active', color: 'green' }, { id: '2', name: 'Parked', color: 'yellow' }, { id: '3', name: 'Killed', color: 'red' }] } },
-    'Next action': { type: 'rich_text' }, 'Stage changed': { type: 'date' }, 'Park reason': { type: 'rich_text' }, 'Revisit on': { type: 'date' },
+    'Stage changed': { type: 'date' }, 'Park reason': { type: 'rich_text' }, 'Revisit on': { type: 'date' },
   },
 });

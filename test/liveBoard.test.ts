@@ -25,11 +25,11 @@ describe('against the real board', () => {
     expect(m.size).toBe(7);
     expect([...m.values()]).not.toContain('spa');
   });
-  it('sees the six missing properties on the live schema and nothing else', () => {
+  it('sees the five missing properties on the live schema and nothing else', () => {
     const status = { type: 'status', status: { options: ['Not started', 'In progress', 'Beta', 'General Available'].map((name) => ({ name })) } };
     const d = diffSchema({ properties: { Idea: { type: 'title' }, Status: status, Priority: { type: 'select' }, Category: { type: 'multi_select' }, Type: { type: 'multi_select' }, Place: { type: 'place' } } });
     expect(hasChanges(d)).toBe(true);
     expect(hasProblems(d)).toBe(false);
-    expect(describeDiff(d)).toHaveLength(6);
+    expect(describeDiff(d)).toHaveLength(5);
   });
 });

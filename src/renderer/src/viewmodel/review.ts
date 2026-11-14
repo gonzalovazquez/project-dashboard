@@ -28,10 +28,10 @@ export function weekInReview(ps: Project[], now: Date): WeekSummary {
 
 export interface Stalled { name: string; title: string; focus: boolean; reasons: string[] }
 
-/** Live projects with a flag that says they are not moving. A missing next action is handled in the last step. */
+/** Live projects with a flag that says they are not moving. Missing ship criteria are handled in the last step. */
 export function stalledProjects(ps: Project[], now: Date): Stalled[] {
   return ps.filter(isLive).flatMap((p) => {
-    const reasons = flags(p, now).filter((f) => f.code !== 'no-next').map((f) => f.text);
+    const reasons = flags(p, now).filter((f) => f.code !== 'no-criteria').map((f) => f.text);
     return reasons.length ? [{ name: p.name, title: title(p), focus: !!p.notion!.focus, reasons }] : [];
   }).sort((a, b) => Number(b.focus) - Number(a.focus) || b.reasons.length - a.reasons.length || a.title.localeCompare(b.title));
 }
@@ -43,10 +43,11 @@ export interface Draft {
   decisions: Record<string, Choice>;
   /** Who is in focus when the review is applied. */
   focus: string[];
-  nextActions: Record<string, string>;
+  /** A ship criterion to add to each project's Notion page, by project name. */
+  newCriteria: Record<string, string>;
 }
 
-export const initialDraft = (ps: Project[]): Draft => ({ decisions: {}, focus: focusProjects(ps).map((p) => p.name), nextActions: {} });
+export const initialDraft = (ps: Project[]): Draft => ({ decisions: {}, focus: focusProjects(ps).map((p) => p.name), newCriteria: {} });
 
 /** Records a decision. Parking or killing a project also takes it out of focus. */
 export function decide(d: Draft, name: string, choice: Choice | undefined): Draft {
@@ -77,7 +78,7 @@ export function toggleFocus(d: Draft, ps: Project[], name: string, now: Date): T
   return { draft: { ...d, focus: [...d.focus, name], decisions } };
 }
 
-export const setNextAction = (d: Draft, name: string, text: string): Draft => ({ ...d, nextActions: { ...d.nextActions, [name]: text } });
+export const setNewCriterion = (d: Draft, name: string, text: string): Draft => ({ ...d, newCriteria: { ...d.newCriteria, [name]: text } });
 
 // ---------------------------------------------------------------- step 3: candidates
 
@@ -98,7 +99,8 @@ export { finishScore };
 
 // ---------------------------------------------------------------- step 4: plan and problems
 
-export const effectiveNext = (p: Project, d: Draft): string => (d.nextActions[p.name] ?? p.notion?.nextAction ?? '').trim();
+/** A focus project needs at least one ship criterion, either on its page already or typed in this review. */
+export const needsCriterion = (p: Project, d: Draft): boolean => (p.notion?.criteria.length ?? 0) === 0 && !(d.newCriteria[p.name] ?? '').trim();
 
 /** Everything that stops the review from being applied yet, in words. Empty when it is ready. */
 export function problems(ps: Project[], d: Draft, now: Date): string[] {
@@ -112,7 +114,7 @@ export function problems(ps: Project[], d: Draft, now: Date): string[] {
   }
   for (const name of d.focus) {
     const p = ps.find((x) => x.name === name);
-    if (p && !effectiveNext(p, d)) out.push(`${title(p)} needs a next action.`);
+    if (p && needsCriterion(p, d)) out.push(`${title(p)} needs a ship criterion.`);
   }
   if (d.focus.length > WIP_LIMIT) out.push(`Focus can hold at most ${WIP_LIMIT} projects.`);
   return out;
@@ -123,8 +125,8 @@ export function buildPlan(ps: Project[], d: Draft): ReviewPlan {
   const decisions: ReviewDecision[] = [];
   const done = new Set<string>();
   const next = (p: Project) => {
-    const typed = d.nextActions[p.name];
-    return typed !== undefined && typed.trim() !== (p.notion!.nextAction ?? '') ? { nextAction: typed.trim() } : {};
+    const typed = (d.newCriteria[p.name] ?? '').trim();
+    return typed ? { addCriterion: typed } : {};
   };
   for (const [name, c] of Object.entries(d.decisions)) {
     if (c.action === 'park') decisions.push({ name, action: 'park', reason: c.reason.trim(), revisitOn: c.revisitOn });
@@ -152,8 +154,8 @@ export function planLines(ps: Project[], plan: ReviewPlan): string[] {
     switch (d.action) {
       case 'park': return `Park ${t(d.name)} until ${fmtDate(new Date(d.revisitOn))}: ${d.reason}`;
       case 'kill': return `Kill ${t(d.name)}`;
-      case 'focus': return `Move ${t(d.name)} into focus${d.nextAction ? `. Next: ${d.nextAction}` : ''}`;
-      case 'keep': return `Keep ${t(d.name)}${d.nextAction ? `. Next: ${d.nextAction}` : ''}`;
+      case 'focus': return `Move ${t(d.name)} into focus${d.addCriterion ? `. Add criterion: ${d.addCriterion}` : ''}`;
+      case 'keep': return `Keep ${t(d.name)}${d.addCriterion ? `. Add criterion: ${d.addCriterion}` : ''}`;
     }
   });
 }

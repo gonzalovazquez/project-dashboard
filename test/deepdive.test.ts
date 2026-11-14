@@ -8,7 +8,7 @@ const DAY = 86_400_000;
 const iso = (daysBack: number) => new Date(NOW.getTime() - daysBack * DAY).toISOString();
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const by = (name: string) => sampleProjects().find((p) => p.name === name)!;
-const withCriteria = (cs: Criterion[], over: Partial<Project> = {}) => project({ name: 'x', ...over }, { stage: 'In progress', stageChangedAt: iso(10), nextAction: 'Go', criteria: cs });
+const withCriteria = (cs: Criterion[], over: Partial<Project> = {}) => project({ name: 'x', ...over }, { stage: 'In progress', stageChangedAt: iso(10), criteria: cs });
 const c = (done: boolean, doneAgo?: number, hours?: number, title = 't'): Criterion => ({ title, done, doneOn: done && doneAgo !== undefined ? iso(doneAgo) : undefined, hours });
 
 describe('burnup', () => {
@@ -125,7 +125,7 @@ describe('health, details and commits', () => {
   it('adds up to the score and names the risks that lower it', () => {
     const m = healthModel(by('sdlc-ai'), NOW);
     expect(m.score).toBe(Math.round(m.parts.reduce((a, x) => a + x.value * x.weight, 0)));
-    expect(m.risks).toEqual(expect.arrayContaining(['In Beta for 90 days', 'No next action']));
+    expect(m.risks).toEqual(expect.arrayContaining(['In Beta for 90 days']));
     expect(m.level).toBe('Poor');
   });
   it('has no risks for a healthy project and grades it', () => {
@@ -225,23 +225,24 @@ describe('write access', () => {
 });
 
 describe('Claude Code prompt', () => {
-  it('names the project, stage, next action and every open criterion with its estimate', () => {
+  it('names the project, stage, next criterion and every open criterion with its estimate', () => {
     const text = kickoffPrompt(by('Buddy Recomp'), NOW);
     expect(text).toContain('Project: Buddy Recomp (/dev/Buddy Recomp)');
     expect(text).toContain('Stage: Beta, 38 days in this stage');
     expect(text).toContain('Progress: 3 of 6 ship criteria are done');
-    expect(text).toContain('Next action: Fix macro import bug on Safari');
+    expect(text).toContain('Next: Fix macro import bug');
+    expect(text).toMatch(/Start with the next criterion/);
     expect(text).toContain('- Fix macro import bug (3h)');
     expect(text).toContain('- Use it daily for 7 days (6h)');
     expect(text).not.toContain('Core logging flow');
     expect(text).toMatch(/stop only for a real blocker/);
   });
-  it('is honest when there is no next action or no criteria', () => {
-    const text = kickoffPrompt(withCriteria([], { name: 'x' }) , NOW).replace('Next action: Go', 'Next action: Go');
+  it('is honest when there are no criteria or every one is done', () => {
+    const text = kickoffPrompt(withCriteria([], { name: 'x' }), NOW);
     expect(text).toContain('Progress: no ship criteria are defined');
+    expect(text).toContain('Next: no ship criteria are defined');
     expect(text).not.toContain('Open ship criteria');
-    const none = project({ name: 'n' }, { stage: 'Beta', criteria: [c(false, undefined, undefined, 'Only one')] });
-    expect(kickoffPrompt(none, NOW)).toContain('Next action: none is set');
+    expect(kickoffPrompt(withCriteria([c(true, 3)]), NOW)).toContain('Next: Every criterion is done. Mark it shipped.');
     expect(kickoffPrompt(project({ name: 'u' }), NOW)).toContain('Stage: not tracked in Notion');
   });
 });

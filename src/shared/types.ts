@@ -69,7 +69,6 @@ export interface NotionInfo {
   stage: Stage;
   stageChangedAt?: string;
   criteria: Criterion[];
-  nextAction?: string;
   focus: boolean;
   life: Life;
   parkReason?: string;

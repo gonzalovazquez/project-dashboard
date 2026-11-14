@@ -1,6 +1,7 @@
 import { Client } from '@notionhq/client';
 import type { Life, NotionInfo, Stage } from '../../shared/types.js';
-import { PROPS, parsePage, type NotionBlock, type NotionPage } from './parse.js';
+import { PLANNING, PROPS, parseCriterion, parsePage, planningSection, type NotionBlock, type NotionPage } from './parse.js';
+import type { Criterion } from '../../shared/types.js';
 
 /** The brainstorming database's data source. Override with NOTION_DATA_SOURCE_ID. */
 export const DEFAULT_DATA_SOURCE_ID = '308975d3-26ba-809d-92ce-000bc4085b1d';
@@ -21,7 +22,8 @@ export interface NotionApi {
   };
   blocks: {
     update(a: { block_id: string; to_do: { checked: boolean } }): Promise<any>;
-    children: { list(a: { block_id: string; start_cursor?: string; page_size?: number }): Promise<Page<any>>; append(a: { block_id: string; children: any[] }): Promise<any> };
+    delete(a: { block_id: string }): Promise<any>;
+    children: { list(a: { block_id: string; start_cursor?: string; page_size?: number }): Promise<Page<any>>; append(a: { block_id: string; children: any[]; position?: { type: 'after_block'; after_block: { id: string } } }): Promise<any> };
   };
 }
 
@@ -29,7 +31,6 @@ export interface PageChange {
   stage?: Stage;
   focus?: boolean;
   life?: Life;
-  nextAction?: string | null;
   stageChangedAt?: string | null;
   parkReason?: string | null;
   revisitOn?: string | null;
@@ -45,6 +46,10 @@ export interface NotionGateway {
   setCriterionChecked(blockId: string, checked: boolean): Promise<void>;
   /** Adds a paragraph to the end of a page. */
   appendNote(pageId: string, text: string): Promise<void>;
+  /** Adds an unchecked to-do to the end of the page's Planning section, creating the section if the page has none, and returns it as a ship criterion. */
+  appendCriterion(pageId: string, text: string): Promise<Criterion>;
+  /** Removes a block, used to undo an added criterion. */
+  deleteBlock(blockId: string): Promise<void>;
   createPage(title: string, stage?: Stage): Promise<{ pageId: string; url: string }>;
 }
 
@@ -58,7 +63,6 @@ export function buildPropertyUpdate(c: PageChange): Record<string, any> {
   if (c.stage !== undefined) out[PROPS.stage] = { status: { name: c.stage } };
   if (c.focus !== undefined) out[PROPS.focus] = { checkbox: c.focus };
   if (c.life !== undefined) out[PROPS.life] = { select: { name: cap(c.life) } };
-  if (c.nextAction !== undefined) out[PROPS.nextAction] = { rich_text: text(c.nextAction) };
   if (c.stageChangedAt !== undefined) out[PROPS.stageChanged] = date(c.stageChangedAt);
   if (c.parkReason !== undefined) out[PROPS.parkReason] = { rich_text: text(c.parkReason) };
   if (c.revisitOn !== undefined) out[PROPS.revisitOn] = date(c.revisitOn);
@@ -109,6 +113,22 @@ export function createGateway(api: NotionApi, dataSourceId = DEFAULT_DATA_SOURCE
     },
     async appendNote(pageId, content) {
       await api.blocks.children.append({ block_id: pageId, children: [{ object: 'block', type: 'paragraph', paragraph: { rich_text: text(content) } }] });
+    },
+    async appendCriterion(pageId, content) {
+      const todo = { object: 'block', type: 'to_do', to_do: { rich_text: text(content), checked: false } };
+      const section = planningSection(await getBlocks(pageId));
+      // Right after the section's last to-do keeps the list together even when notes or blank lines follow it.
+      const last = section ? ([...section.body].reverse().find((b) => b.type === 'to_do') ?? section.heading) : undefined;
+      const r = last?.id
+        ? await api.blocks.children.append({ block_id: pageId, children: [todo], position: { type: 'after_block', after_block: { id: last.id } } })
+        : await api.blocks.children.append({ block_id: pageId, children: [{ object: 'block', type: 'heading_2', heading_2: { rich_text: text(PLANNING) } }, todo] });
+      const block = (r?.results ?? []).find((b: NotionBlock) => b.type === 'to_do');
+      const c = block && parseCriterion(block);
+      if (!c?.blockId) throw new Error('Notion did not return the new to-do.');
+      return c;
+    },
+    async deleteBlock(blockId) {
+      await api.blocks.delete({ block_id: blockId });
     },
     async createPage(title, stage = 'Not started') {
       const r = await api.pages.create({

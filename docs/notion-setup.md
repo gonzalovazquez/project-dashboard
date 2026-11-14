@@ -38,7 +38,7 @@ The app expects these properties on the database. The first two already exist on
 |---|---|---|
 | Idea | Title | Matched to a folder name |
 | Status | Status | Needs the four values Not started, In progress, Beta, General Available |
-| Focus, Lifecycle, Next action, Stage changed, Park reason, Revisit on | Checkbox, Select, Text, Date, Text, Date | Added in step 6 |
+| Focus, Lifecycle, Stage changed, Park reason, Revisit on | Checkbox, Select, Date, Text, Date | Added in step 6 |
 
 Property names are set in `src/main/notion/parse.ts` (`PROPS`). If yours are named differently, change them there.
 
