@@ -9,7 +9,7 @@ const NOTION_TEXT: Record<NotionState, string> = {
   error: 'Could not reach Notion',
   'schema-missing': 'Connected, but the database needs setup',
 };
-const APPEARANCES: Array<[Appearance, string]> = [['system', 'Match system'], ['light', 'Light'], ['dark', 'Dark']];
+const APPEARANCES: Array<[Appearance, string]> = [['system', 'Match system'], ['light', 'Light'], ['dark', 'Dark'], ['matrix', 'Matrix']];
 
 interface Props { snap: Snapshot; first: boolean; onFinish: () => void }
 

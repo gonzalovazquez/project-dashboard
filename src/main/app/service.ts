@@ -6,6 +6,7 @@ import {
 } from '../../shared/ipc.js';
 import { kill, park, promote, ship, unpark } from '../../shared/rules.js';
 import { applyReview, reviewNote, type ReviewOutcome, type ReviewPlan } from '../../shared/review.js';
+import { claudeNewChatUrl, IDEA_MAX, ideaRow, newProjectPrompt } from '../../shared/planning.js';
 import type { NotionBackend } from '../notion/backend.js';
 import type { PageChange } from '../notion/gateway.js';
 import { hasChanges } from '../notion/schema.js';
@@ -33,7 +34,7 @@ export interface ServiceDeps {
   folderExists(path: string): Promise<boolean>;
   openExternal(url: string): Promise<void>;
   showInFolder(path: string): void;
-  /** Applies the light, dark or system appearance to the window and native effects. */
+  /** Applies the appearance to the window and native effects. Matrix runs on native dark. */
   setAppearance?(appearance: Appearance): void;
   now?: () => Date;
 }
@@ -158,7 +159,7 @@ export class DashboardService {
       } else {
         infoByFolder = matchNotion(scans.map((s) => s.name), pulled.loaded, settings.overrides).infoByFolder;
         const matched = new Set([...infoByFolder.values()].map((i) => i.pageId));
-        this.unlinked = pulled.loaded.flatMap((l) => (l.info && !matched.has(l.page.id) ? [{ id: l.page.id, title: l.info.title, url: l.info.url, stage: l.info.stage, info: l.info }] : []));
+        this.unlinked = pulled.loaded.flatMap((l) => (l.info && !matched.has(l.page.id) ? [{ ...ideaRow(l.page.id, l.info), url: l.info.url, info: l.info }] : []));
         const schemaMissing = hasChanges(pulled.diff);
         this.notion = schemaMissing
           ? { state: 'schema-missing', message: 'The Notion database is missing properties the app needs. Run npm run notion:setup to review them, then npm run notion:setup -- --apply to add them, then rescan.', syncedAt: now.toISOString(), pages: pulled.loaded.length }
@@ -543,6 +544,21 @@ export class DashboardService {
     catch (e) { return e instanceof SecureStorageUnavailable ? fail('no-secure-storage', e.message) : fail('invalid', msg(e)); }
     this.backend = undefined;
     await this.emitMeta();
+    return ok();
+  }
+
+  async openIdea(pageId: string): Promise<Result> {
+    const page = this.unlinked.find((u) => u.id === pageId);
+    if (!page) return fail('not-found', 'That idea is no longer in Notion, or a folder is now linked to it. Rescan to refresh.');
+    await this.d.openExternal(page.url);
+    return ok();
+  }
+
+  async startNewProject(idea: string): Promise<Result> {
+    const clean = idea.trim();
+    if (!clean) return fail('invalid', 'Describe the idea first.');
+    if (clean.length > IDEA_MAX) return fail('invalid', `Keep the idea under ${IDEA_MAX} characters. The details come out in the brainstorm.`);
+    await this.d.openExternal(claudeNewChatUrl(newProjectPrompt(clean)));
     return ok();
   }
 

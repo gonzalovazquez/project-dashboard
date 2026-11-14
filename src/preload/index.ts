@@ -31,6 +31,8 @@ const api: DashboardApi = {
   saveSettings: (patch) => ipcRenderer.invoke(CHANNELS.saveSettings, patch),
   setToken: (token) => ipcRenderer.invoke(CHANNELS.setToken, token),
   openLink: (name, kind) => ipcRenderer.invoke(CHANNELS.openLink, name, kind),
+  openIdea: (pageId) => ipcRenderer.invoke(CHANNELS.openIdea, pageId),
+  startNewProject: (idea) => ipcRenderer.invoke(CHANNELS.startNewProject, idea),
 };
 
 contextBridge.exposeInMainWorld('dashboard', api);

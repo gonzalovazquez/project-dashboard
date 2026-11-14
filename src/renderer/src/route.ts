@@ -1,7 +1,7 @@
 export type Route =
   | { view: 'overview' }
   | { view: 'project'; name: string }
-  | { view: 'review' | 'library' | 'inbox' | 'parked' | 'shipped' | 'settings' };
+  | { view: 'review' | 'planning' | 'library' | 'inbox' | 'parked' | 'shipped' | 'settings' };
 
 export const OVERVIEW: Route = { view: 'overview' };
 

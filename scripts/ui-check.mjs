@@ -44,7 +44,7 @@ const load = async (variant, scheme = 'light', size = { width: 1280, height: 150
       getSnapshot: async () => s, startScan: async () => { window.__calls.push('startScan'); },
       onProjectUpdate: (l) => { listeners.push(l); return () => {}; },
       saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); Object.assign(s.settings, p); meta(); return { ok: true }; },
-      getSettings: async () => s.settings, addCriterion: rec('addCriterion'), setCriterion: rec('setCriterion'),
+      getSettings: async () => s.settings, addCriterion: rec('addCriterion'), openIdea: rec('openIdea'), startNewProject: rec('startNewProject'), setCriterion: rec('setCriterion'),
       promote: rec('promote'), park: rec('park'), kill: rec('kill'), unpark: rec('unpark'), addToNotion: rec('addToNotion'),
       groupFolder: rec('groupFolder'), ungroupFolder: rec('ungroupFolder'),
       ignoreFolder: rec('ignoreFolder', (name, ignored) => { s.settings.ignored = ignored ? [...new Set([...s.settings.ignored, name])] : s.settings.ignored.filter((n) => n !== name); meta(); }),

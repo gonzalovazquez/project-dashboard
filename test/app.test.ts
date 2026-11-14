@@ -70,12 +70,15 @@ describe('settings, cache and merge', () => {
     expect(await createSettingsStore(path).load()).toEqual({ developmentFolder: '/Users/g/Code', overrides: { a: 'p1' }, ignored: [], groups: {}, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: false, lastReviewAt: undefined });
     await store.save({ appearance: 'dark' });
     expect((await createSettingsStore(path).load()).appearance).toBe('dark');
+    await store.save({ appearance: 'matrix' });
+    expect((await createSettingsStore(path).load()).appearance).toBe('matrix');
   });
   it('rejects bad settings', async () => {
     expect(validatePatch({ developmentFolder: 'relative' })).toContain('absolute');
     expect(validatePatch({ overrides: { a: '' } })).toBeDefined();
     expect(validatePatch({ appearance: 'purple' as never })).toContain('Appearance');
     expect(validatePatch({ developmentFolder: '/ok', overrides: { a: 'p' }, appearance: 'dark' })).toBeUndefined();
+    expect(validatePatch({ appearance: 'matrix' })).toBeUndefined();
     await expect(createSettingsStore(join(tmp(), 's.json')).save({ developmentFolder: 'x' })).rejects.toThrow();
   });
   it('round-trips the cache and ignores other versions and corrupt files', async () => {
@@ -236,7 +239,7 @@ describe('renderer state: meta updates', () => {
   it('replaces settings and unlinked pages and leaves projects alone', async () => {
     const { applyUpdate } = await import('../src/renderer/src/state.js');
     const prev = { projects: [project({ name: 'a' })], scanning: false, stageHistory: [], unlinkedPages: [], notion: { state: 'connected' }, settings: { developmentFolder: '/d', overrides: {}, ignored: [], groups: {}, tokenSource: 'none', secureStorageAvailable: true, appearance: 'system', reviewDay: 5, reviewTime: '16:00', reviewReminder: true, onboarded: false } } as unknown as Snapshot;
-    const next = applyUpdate(prev, { kind: 'meta', settings: { ...prev.settings, onboarded: true, ignored: ['x'] }, unlinkedPages: [{ id: 'u', title: 'T', url: 'https://n', stage: 'Beta' }] })!;
+    const next = applyUpdate(prev, { kind: 'meta', settings: { ...prev.settings, onboarded: true, ignored: ['x'] }, unlinkedPages: [{ id: 'u', title: 'T', life: 'active', done: 0, total: 0, url: 'https://n', stage: 'Beta' }] })!;
     expect(next.settings).toMatchObject({ onboarded: true, ignored: ['x'] });
     expect(next.unlinkedPages).toHaveLength(1);
     expect(next.projects).toBe(prev.projects);
