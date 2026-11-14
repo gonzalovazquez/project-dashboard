@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Snapshot } from '../../../shared/ipc.js';
 import type { Project } from '../../../shared/types.js';
 import { Banners } from './Banners.js';
@@ -8,18 +8,18 @@ import { KpiTile } from './Overview.js';
 import { BurnupChart, HealthPanel, Heatmap, LanguageBar, WeekChart } from './deep/DeepCharts.js';
 import { STAGE_COLOR } from '../tokens.js';
 import { NoticeBar, useAction } from './actions.js';
+import { nextCriterion } from '../../../shared/rules.js';
 import { ProjectActions } from './ProjectActions.js';
 
-function NextAction({ p, can, onSave }: { p: Project; can: boolean; onSave: (t: string | null) => void }) {
-  const saved = p.notion?.nextAction ?? '';
-  const [text, setText] = useState(saved);
-  useEffect(() => setText(saved), [saved]);
-  const dirty = text.trim() !== saved;
+/** Adds a to-do to the Notion page. The text clears only once Notion has it. */
+function AddCriterion({ can, onAdd }: { can: boolean; onAdd: (t: string) => Promise<boolean> }) {
+  const [text, setText] = useState('');
+  const ready = can && text.trim().length > 0;
   return (
-    <form className="next" onSubmit={(e) => { e.preventDefault(); if (dirty) onSave(text.trim() || null); }}>
-      <label htmlFor="next-action">Next action</label>
-      <input id="next-action" value={text} disabled={!can} maxLength={200} placeholder="The one small thing to do next" onChange={(e) => setText(e.target.value)} />
-      <button className="btn" type="submit" disabled={!can || !dirty}>Save</button>
+    <form className="next" data-form="add-criterion" onSubmit={(e) => { e.preventDefault(); if (ready) void onAdd(text.trim()).then((ok) => { if (ok) setText(''); }); }}>
+      <label htmlFor="add-criterion" className="sr-only">New ship criterion</label>
+      <input id="add-criterion" value={text} disabled={!can} maxLength={2000} placeholder="Add a criterion, e.g. Deploy to production (4h)" onChange={(e) => setText(e.target.value)} />
+      <button className="btn" type="submit" disabled={!ready}>Add</button>
     </form>
   );
 }
@@ -35,6 +35,7 @@ export function DeepDive({ snap, project, now }: { snap: Snapshot; project: Proj
     health: healthModel(project, now), langs: languageSegments(project), rows: detailRows(project, now), commits: recentCommitRows(project, now),
   }), [project, now]);
   const allDone = model.burn.ready;
+  const next = nextCriterion(project);
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try { await navigator.clipboard.writeText(kickoffPrompt(project, now)); setCopied(true); setTimeout(() => setCopied(false), 1800); }
@@ -66,25 +67,25 @@ export function DeepDive({ snap, project, now }: { snap: Snapshot; project: Proj
             onClick={() => void act.run(() => api.markShipped(project.name), `${n?.title ?? project.name} shipped. Its focus slot is free.`)}>Mark shipped</button>
         </div>
       </div>
-      <NextAction p={project} can={canWrite && !act.busy} onSave={(t) => void act.run(() => api.setNextAction(project.name, t))} />
       <div className="kpis">{model.tiles.map((k) => <KpiTile key={k.id} k={k} />)}</div>
       <div className="g21">
         <BurnupChart model={model.burn} now={now} />
         <section className="card" aria-labelledby="crit-t" data-section="criteria">
           <div className="hd"><h3 id="crit-t">Ship criteria</h3><span className="mut small">{model.burn.done} of {model.burn.total}</span></div>
           {(n?.criteria ?? []).length === 0
-            ? <p className="mut small">None yet. Add to-do items to the Notion page.</p>
+            ? <p className="mut small">None yet. Add the first thing that has to be true before this ships.</p>
             : <ul className="crit">
                 {n!.criteria.map((c) => (
-                  <li key={c.blockId} data-done={c.done}>
+                  <li key={c.blockId} data-done={c.done} data-next={c === next || undefined}>
                     <label>
                       <input type="checkbox" checked={c.done} disabled={!canCheck || act.busy} onChange={(e) => void act.run(() => api.setCriterion(project.name, c.blockId!, e.target.checked))} />
-                      <span>{c.title}</span>
+                      <span>{c === next && <span className="next-tag">Next</span>}{c.title}</span>
                     </label>
                     <span className="mut small num">{c.hours ? `${c.hours}h` : 'no estimate'}</span>
                   </li>
                 ))}
               </ul>}
+          {n && <AddCriterion can={canCheck && !act.busy} onAdd={(t) => act.run(() => api.addCriterion(project.name, t))} />}
         </section>
       </div>
       <div className="g2">

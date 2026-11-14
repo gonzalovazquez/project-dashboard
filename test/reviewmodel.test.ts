@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { applyReview } from '../src/shared/review.js';
 import { focusProjects } from '../src/shared/rules.js';
-import { buildPlan, candidates, decide, initialDraft, planLines, problems, setNextAction, stalledProjects, toggleFocus, weekInReview, type Draft } from '../src/renderer/src/viewmodel/review.js';
+import { buildPlan, candidates, decide, initialDraft, planLines, problems, setNewCriterion, stalledProjects, toggleFocus, weekInReview, type Draft } from '../src/renderer/src/viewmodel/review.js';
 import { daysAgo, NOW, project } from './helpers.js';
 
 const crit = (id: string, done: boolean, doneAgo?: number) => ({ blockId: id, title: id, done, doneOn: doneAgo === undefined ? undefined : daysAgo(doneAgo).toISOString() });
 const mk = (name: string, over: Record<string, unknown> = {}, notion: Record<string, unknown> = {}) =>
-  project({ name, ...over }, { nextAction: 'go', stageChangedAt: daysAgo(5).toISOString(), ...notion });
+  project({ name, ...over }, { criteria: [crit('0', false)], stageChangedAt: daysAgo(5).toISOString(), ...notion });
 const set = () => [
   mk('a', { weekly: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4] }, { focus: true, criteria: [crit('1', true, 2), crit('2', true, 20), crit('3', false)], stageChangedAt: daysAgo(3).toISOString() }),
   mk('b', { pulse: { score: 0, level: 'Dormant', lastActivityDays: 30 } }, { focus: true, stage: 'Beta', stageChangedAt: daysAgo(60).toISOString() }),
-  mk('c', {}, { focus: true, nextAction: undefined }),
+  mk('c', {}, { focus: true, criteria: [] }),
   mk('d', {}, { criteria: [crit('1', true, 3), crit('2', false)] }),
-  mk('e', { pulse: { score: 0, level: 'Dormant', lastActivityDays: 40 } }, {}),
+  mk('e', { pulse: { score: 0, level: 'Dormant', lastActivityDays: 40 } }, { criteria: [] }),
   mk('p', {}, { life: 'parked' }),
 ];
 const next = (t: ReturnType<typeof toggleFocus>): Draft => { if (!('draft' in t)) throw new Error('blocked: ' + t.blocked); return t.draft; };
@@ -26,7 +26,7 @@ describe('weekInReview', () => {
 });
 
 describe('stalledProjects', () => {
-  it('lists live projects that are not moving, focus first, and ignores a missing next action', () => {
+  it('lists live projects that are not moving, focus first, and leaves missing criteria to the last step', () => {
     const s = stalledProjects(set(), NOW);
     expect(s.map((x) => x.name)).toEqual(['b', 'e']);
     expect(s[0].reasons.join()).toMatch(/Beta for 60 days/);
@@ -36,7 +36,7 @@ describe('stalledProjects', () => {
 
 describe('draft', () => {
   it('starts with the current focus and nothing decided', () => {
-    expect(initialDraft(set())).toEqual({ decisions: {}, focus: ['a', 'b', 'c'], nextActions: {} });
+    expect(initialDraft(set())).toEqual({ decisions: {}, focus: ['a', 'b', 'c'], newCriteria: {} });
   });
   it('parking or killing takes a project out of focus; keeping does not', () => {
     const d = initialDraft(set());
@@ -75,13 +75,13 @@ describe('candidates', () => {
 });
 
 describe('problems and plan', () => {
-  it('blocks until every stalled project has a decision and every focus project has a next action', () => {
+  it('blocks until every stalled project has a decision and every focus project has a ship criterion', () => {
     const ps = set();
     const d0 = initialDraft(ps);
-    expect(problems(ps, d0, NOW)).toEqual(['Decide what to do with b: in beta for 60 days.', 'Decide what to do with e: gone quiet.', 'c needs a next action.']);
+    expect(problems(ps, d0, NOW)).toEqual(['Decide what to do with b: in beta for 60 days.', 'Decide what to do with e: gone quiet.', 'c needs a ship criterion.']);
     let d = decide(d0, 'b', { action: 'keep' });
     d = decide(d, 'e', { action: 'kill' });
-    d = setNextAction(d, 'c', '  Write tests ');
+    d = setNewCriterion(d, 'c', '  Write tests ');
     expect(problems(ps, d, NOW)).toEqual([]);
   });
   it('counts a stalled project that is put in focus as decided', () => {
@@ -99,15 +99,15 @@ describe('problems and plan', () => {
     let d = decide(initialDraft(ps), 'b', { action: 'park', reason: 'Stuck', revisitOn: '2026-11-20' });
     d = decide(d, 'e', { action: 'kill' });
     d = next(toggleFocus(d, ps, 'd', NOW));
-    d = setNextAction(d, 'c', ' Write tests ');
-    d = setNextAction(d, 'a', 'go');
+    d = setNewCriterion(d, 'c', ' Write tests ');
+    d = setNewCriterion(d, 'a', '   ');
     expect(problems(ps, d, NOW)).toEqual([]);
     const plan = buildPlan(ps, d);
     expect(plan.decisions).toEqual([
       { name: 'b', action: 'park', reason: 'Stuck', revisitOn: '2026-11-20' },
       { name: 'e', action: 'kill' },
       { name: 'a', action: 'keep' },
-      { name: 'c', action: 'keep', nextAction: 'Write tests' },
+      { name: 'c', action: 'keep', addCriterion: 'Write tests' },
       { name: 'd', action: 'focus' },
     ]);
     const r = applyReview(ps, plan);
@@ -118,5 +118,10 @@ describe('problems and plan', () => {
     const ps = set();
     const d = decide(initialDraft(ps), 'b', { action: 'kill' });
     expect(planLines(ps, buildPlan(ps, d))).toEqual(['Kill b', 'Keep a', 'Keep c']);
+  });
+  it('names an added criterion in the plan', () => {
+    const ps = set();
+    const d = setNewCriterion(decide(initialDraft(ps), 'b', { action: 'kill' }), 'c', 'Write tests');
+    expect(planLines(ps, buildPlan(ps, d))).toContain('Keep c. Add criterion: Write tests');
   });
 });

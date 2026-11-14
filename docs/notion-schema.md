@@ -7,12 +7,36 @@ The dashboard reads one Notion database (your Brainstorming board). Property nam
 |---|---|---|
 | Idea | Title | Matched to a folder name (see below) |
 | Status | Status | Not started, In progress, Beta, General Available |
-| Next action | Text | One thing you can finish in a sitting |
 | Focus | Checkbox | In one of the 3 focus slots |
 | Lifecycle | Select | Active, Parked, Killed (empty counts as Active) |
 | Stage changed | Date | When Status last changed. Falls back to the page's created time |
 | Park reason | Text | Why it was parked |
 | Revisit on | Date | When a parked project returns for review |
+
+## Page body: the Planning section
+
+Ship criteria are the to-dos under a **Planning** heading in the page body, not a property. Every page in the
+database has one, normally as the last section:
+
+```
+## Planning
+
+- [ ] Deploy to production (4h)
+- [ ] Use it daily for a week
+```
+
+- The section runs from the Planning heading to the next heading of the same or a higher level, so `###`
+  subheadings inside it are fine. The heading matches at any level, ignoring case, emoji and punctuation.
+- Only top-level to-dos count. A to-do inside a toggle or column is not read.
+- To-dos elsewhere on the page (a demo prep checklist, say) are not ship criteria.
+- The first unchecked one is the project's next step, so there is no separate next-action field.
+- End one with an estimate in brackets, like `Deploy to production (4h)`, to give it hours.
+- Adding a criterion from the app (deep dive or weekly review) inserts it right after the section's last to-do.
+  A page with no Planning heading gets one at the end.
+- A page with no Planning heading at all is read the old way: every top-level to-do counts.
+
+Older versions of the app added a **Next action** text property. The app no longer reads or writes it, so you
+can delete it from the database whenever you like.
 
 ## Setting it up
 

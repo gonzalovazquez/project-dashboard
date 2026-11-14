@@ -170,7 +170,7 @@ describe('IPC registration', () => {
   });
   it('passes valid calls to the service', async () => {
     const { call, h } = await wired();
-    expect((await call(CHANNELS.setNextAction, 'beta', 'Do it')).ok).toBe(true);
+    expect((await call(CHANNELS.addCriterion, 'beta', 'Do it')).ok).toBe(true);
     expect((await call(CHANNELS.setCriterion, 'alpha', 'a2', true)).ok).toBe(true);
     expect((await call(CHANNELS.park, 'gamma', 'blocked', '2026-11-12')).ok).toBe(true);
     expect(calls(h)).toHaveLength(3);

@@ -33,7 +33,7 @@ describe('startup and scanning', () => {
     const snap = await h.svc.getSnapshot();
     expect(snap.notion).toMatchObject({ state: 'connected', pages: 4 });
     const by = Object.fromEntries(snap.projects.map((p) => [p.name, p]));
-    expect(by.alpha.notion).toMatchObject({ stage: 'Beta', focus: true, nextAction: 'Ship it' });
+    expect(by.alpha.notion).toMatchObject({ stage: 'Beta', focus: true });
     expect(by.alpha.notion!.criteria.map((c) => c.blockId)).toEqual(['a1', 'a2']);
     expect(by.loose.notion).toBeUndefined();
   });
@@ -196,7 +196,6 @@ describe('focus changes', () => {
     const h = await harness({ ...board(), schema: 'live' });
     await h.svc.startScan();
     expectFail(await h.svc.park('beta', 'x', '2026-11-12'), 'schema-missing');
-    expectFail(await h.svc.setNextAction('alpha', 'x'), 'schema-missing');
     expect(calls(h)).toEqual([]);
   });
 
@@ -216,22 +215,40 @@ describe('focus changes', () => {
   });
 });
 
-describe('next action and criteria', () => {
-  it('saves and clears a next action', async () => {
+describe('criteria', () => {
+  const criteriaOf = async (h: Awaited<ReturnType<typeof scanned>>, name: string) => (await h.svc.getSnapshot()).projects.find((p) => p.name === name)!.notion!.criteria;
+
+  it('adds a criterion right after the last one in the Planning section, and to the project', async () => {
     const h = await scanned();
-    expect((await h.svc.setNextAction('beta', '  Wire the sandbox  ')).ok).toBe(true);
-    expect(calls(h)[0].args).toEqual({ page_id: 'pb', properties: { 'Next action': { rich_text: [{ type: 'text', text: { content: 'Wire the sandbox' } }] } } });
-    const get = async () => (await h.svc.getSnapshot()).projects.find((p) => p.name === 'beta')!.notion!.nextAction;
-    expect(await get()).toBe('Wire the sandbox');
-    await h.svc.setNextAction('beta', '   ');
-    expect(await get()).toBeUndefined();
+    const before = await criteriaOf(h, 'alpha');
+    expect((await h.svc.addCriterion('alpha', '  Write the docs (2h)  ')).ok).toBe(true);
+    expect(calls(h)).toEqual([{ op: 'blocks.append', args: { block_id: 'pa', position: { type: 'after_block', after_block: { id: 'a2' } }, children: [{ object: 'block', type: 'to_do', to_do: { rich_text: [{ type: 'text', text: { content: 'Write the docs (2h)' } }], checked: false } }] } }]);
+    const after = await criteriaOf(h, 'alpha');
+    expect(after).toHaveLength(before.length + 1);
+    expect(after.at(-1)).toMatchObject({ title: 'Write the docs', hours: 2, done: false });
+    expect(after.at(-1)!.blockId).toBeTruthy();
   });
 
-  it('keeps the old value when the write fails', async () => {
+  it('refuses empty text, unknown projects, and folders with no Notion page, writing nothing', async () => {
     const h = await scanned();
-    h.fake.failNext('pages.update', 'conflict');
-    expectFail(await h.svc.setNextAction('alpha', 'New'), 'notion-write-failed');
-    expect((await h.svc.getSnapshot()).projects.find((p) => p.name === 'alpha')!.notion!.nextAction).toBe('Ship it');
+    expectFail(await h.svc.addCriterion('alpha', '   '), 'invalid');
+    expectFail(await h.svc.addCriterion('nope', 'x'), 'not-found');
+    expectFail(await h.svc.addCriterion('loose', 'x'), 'no-notion');
+    expect(calls(h)).toEqual([]);
+  });
+
+  it('works while the schema is incomplete, like checking a criterion', async () => {
+    const h = await harness({ ...board(), schema: 'live' });
+    await h.svc.startScan();
+    expect((await h.svc.addCriterion('alpha', 'x')).ok).toBe(true);
+  });
+
+  it('leaves the project unchanged when Notion refuses', async () => {
+    const h = await scanned();
+    const before = await criteriaOf(h, 'alpha');
+    h.fake.failNext('blocks.append', 'conflict');
+    expectFail(await h.svc.addCriterion('alpha', 'New'), 'notion-write-failed');
+    expect(await criteriaOf(h, 'alpha')).toEqual(before);
   });
 
   it('checks a criterion in Notion and records when', async () => {

@@ -44,7 +44,7 @@ const load = async (variant, scheme = 'light', size = { width: 1280, height: 150
       getSnapshot: async () => s, startScan: async () => { window.__calls.push('startScan'); },
       onProjectUpdate: (l) => { listeners.push(l); return () => {}; },
       saveSettings: async (p) => { window.__calls.push(['saveSettings', p]); Object.assign(s.settings, p); meta(); return { ok: true }; },
-      getSettings: async () => s.settings, setNextAction: rec('setNextAction'), setCriterion: rec('setCriterion'),
+      getSettings: async () => s.settings, addCriterion: rec('addCriterion'), setCriterion: rec('setCriterion'),
       promote: rec('promote'), park: rec('park'), kill: rec('kill'), unpark: rec('unpark'), addToNotion: rec('addToNotion'),
       groupFolder: rec('groupFolder'), ungroupFolder: rec('ungroupFolder'),
       ignoreFolder: rec('ignoreFolder', (name, ignored) => { s.settings.ignored = ignored ? [...new Set([...s.settings.ignored, name])] : s.settings.ignored.filter((n) => n !== name); meta(); }),
@@ -220,9 +220,12 @@ for (const scheme of ['light', 'dark']) {
     await crit[0].click();
     const call = await page.evaluate(() => window.__calls.at(-1));
     check('ticking a criterion calls the bridge with the block id', call[0] === 'setCriterion' && call[1] === 'dark-factory' && typeof call[2] === 'string' && typeof call[3] === 'boolean', JSON.stringify(call));
-    await page.fill('#next-action', 'Wire the export button');
-    await page.click('.next button');
-    check('saving the next action calls the bridge', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['setNextAction', 'dark-factory', 'Wire the export button']));
+    check('there is no free-text next action field', (await page.$$('#next-action')).length === 0);
+    check('the first open criterion is tagged Next', (await page.$$('[data-section=criteria] li[data-next] .next-tag')).length === 1);
+    check('Add is disabled until something is typed', await page.isDisabled('[data-form=add-criterion] button'));
+    await page.fill('#add-criterion', 'Wire the export button (2h)');
+    await page.click('[data-form=add-criterion] button');
+    check('adding a criterion calls the bridge', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['addCriterion', 'dark-factory', 'Wire the export button (2h)']));
     check('Mark shipped is disabled while criteria are open', await page.isDisabled('[data-action=ship]'));
     await page.click('button:has-text("Folder")');
     check('Folder button opens the folder', JSON.stringify(await page.evaluate(() => window.__calls.at(-1))) === JSON.stringify(['openLink', 'dark-factory', 'folder']));
@@ -395,9 +398,12 @@ for (const scheme of ['light', 'dark']) {
 
   await page.click('[data-action=next]');
   await page.screenshot({ path: join(shots, 'review-4.png'), fullPage: true });
-  const missing = await page.$$eval('[data-field=next]', (els) => els.filter((e) => !e.value).length);
-  check('Apply is disabled exactly while a focus project lacks a next action', (await page.isDisabled('[data-action=apply-review]')) === (missing > 0), String(missing));
-  for (const el of await page.$$('[data-field=next]')) if (!(await el.inputValue())) await el.fill('Do the first small thing');
+  check('each focus project shows its next step', (await page.$$('[data-review-step="4"] [data-testid=next-step]')).length === (await page.$$('[data-field=criterion]')).length);
+  const missing = await page.$$eval('[data-review-step="4"] li[data-next]', (els) => els.filter((e) => e.querySelector('[data-testid=next-step]').textContent.startsWith('No ship criteria') && !e.querySelector('[data-field=criterion]').value).length);
+  check('Apply is disabled exactly while a focus project has no ship criteria', (await page.isDisabled('[data-action=apply-review]')) === (missing > 0), String(missing));
+  for (const li of await page.$$('[data-review-step="4"] li[data-next]')) {
+    if ((await (await li.$('[data-testid=next-step]')).textContent()).startsWith('No ship criteria')) await (await li.$('[data-field=criterion]')).fill('Do the first small thing');
+  }
   check('Apply is enabled once everything is decided', !(await page.isDisabled('[data-action=apply-review]')), (await page.textContent('[data-testid=blockers]').catch(() => '')) ?? '');
   const lines = await page.$$eval('[data-testid=plan] li', (els) => els.map((e) => e.textContent));
   check('the plan reads in plain words', lines.some((l) => l.startsWith('Park ')) && lines.some((l) => l.startsWith('Move ')), lines.join(' | '));

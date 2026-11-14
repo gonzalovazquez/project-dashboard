@@ -206,6 +206,9 @@ svg.chart g.col:hover > path, svg.chart g.col:hover > rect:not(.hit) { filter: b
 .next label { font-weight: 600; font-size: 12.5px; white-space: nowrap; }
 .next input { flex: 1; min-width: 0; border: 0; border-radius: 6px; padding: 5px 10px; font: inherit; background: var(--card); color: var(--label); box-shadow: 0 0 0 0.5px var(--sep), inset 0 0.5px 1px rgba(0, 0, 0, 0.08); }
 .next input:disabled { opacity: 0.6; }
+.crit + .next, .card > .mut + .next { margin-top: 10px; }
+.next-tag { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; line-height: 16px; vertical-align: 1px; color: var(--blue); background: color-mix(in srgb, var(--blue) 14%, transparent); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .crit { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .crit li { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 0.5px solid var(--sep); }
 .crit li:last-child { border-bottom: 0; }

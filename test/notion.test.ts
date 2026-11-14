@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { matchFolders, normalizeName, scoreMatch } from '../src/main/notion/match.js';
-import { parseCriterion, parsePage, type NotionPage } from '../src/main/notion/parse.js';
+import { parseCriteria, parseCriterion, parsePage, planningSection, type NotionBlock, type NotionPage } from '../src/main/notion/parse.js';
+import { heading, para } from './fakeNotion.js';
 
 const pages = [
   { id: '1', title: 'Dark Factory' }, { id: '2', title: 'Flockchat' }, { id: '3', title: 'Agentic Development Environment' },
@@ -47,7 +48,6 @@ describe('Notion parsing', () => {
     properties: {
       Idea: { title: [{ plain_text: 'Buddy Recomp' }] },
       Status: { status: { name: 'Beta' } },
-      'Next action': { rich_text: [{ plain_text: 'Fix Safari bug' }] },
       Focus: { checkbox: true },
       Lifecycle: { select: { name: 'Active' } },
       'Stage changed': { date: { start: '2026-09-04' } },
@@ -55,14 +55,30 @@ describe('Notion parsing', () => {
   };
   it('maps a page and its blocks', () => {
     const info = parsePage(page, [todo('Core flow', true), todo('Deploy (3h)', false)])!;
-    expect(info).toMatchObject({ pageId: 'abc', title: 'Buddy Recomp', stage: 'Beta', nextAction: 'Fix Safari bug', focus: true, life: 'active', stageChangedAt: '2026-09-04' });
+    expect(info).toMatchObject({ pageId: 'abc', title: 'Buddy Recomp', stage: 'Beta', focus: true, life: 'active', stageChangedAt: '2026-09-04' });
     expect(info.criteria).toHaveLength(2);
   });
   it('falls back to created time and defaults', () => {
     const p = { ...page, properties: { Idea: page.properties.Idea, Status: page.properties.Status } };
-    expect(parsePage(p, [])).toMatchObject({ stageChangedAt: '2026-08-01T00:00:00Z', focus: false, life: 'active', nextAction: undefined });
+    expect(parsePage(p, [])).toMatchObject({ stageChangedAt: '2026-08-01T00:00:00Z', focus: false, life: 'active' });
   });
   it('skips pages with an unknown status', () => {
     expect(parsePage({ ...page, properties: { ...page.properties, Status: { status: { name: 'Someday' } } } }, [])).toBeUndefined();
+  });
+});
+
+describe('the Planning section', () => {
+  const t = (id: string, title: string): NotionBlock => ({ id, type: 'to_do', to_do: { rich_text: [{ plain_text: title }], checked: false } });
+  it('reads only the to-dos under the Planning heading, up to the next heading of the same or a higher level', () => {
+    const blocks = [heading('h0', 'Demo prep'), t('d', 'Bring an HDMI adapter'), heading('h1', 'Planning'), t('a', 'A'), heading('h2', 'Phase 2', 3), t('b', 'B'), heading('h3', 'ADR 001'), t('c', 'Not this')] as NotionBlock[];
+    expect(parseCriteria(blocks).map((c) => c.title)).toEqual(['A', 'B']);
+  });
+  it('matches the heading ignoring case, emoji, punctuation and level', () => {
+    for (const label of ['planning', '📋 Planning', 'PLANNING:']) expect(planningSection([heading('h', label, 1)] as NotionBlock[])).toBeDefined();
+    expect(planningSection([heading('h', 'Planning notes')] as NotionBlock[])).toBeUndefined();
+    expect(planningSection([para('p', 'Planning')] as NotionBlock[])).toBeUndefined();
+  });
+  it('falls back to every top-level to-do on a page with no Planning heading', () => {
+    expect(parseCriteria([heading('h', 'Notes'), t('a', 'A'), t('b', 'B')] as NotionBlock[]).map((c) => c.title)).toEqual(['A', 'B']);
   });
 });

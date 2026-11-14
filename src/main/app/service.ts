@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { NotionInfo, Project, ScanResult, StagePoint } from '../../shared/types.js';
+import type { Criterion, NotionInfo, Project, ScanResult, StagePoint } from '../../shared/types.js';
 import {
   fail, ok,
   type Appearance, type LinkKind, type NotionStatus, type ProjectUpdate, type PublicSettings, type Result, type SettingsPatch, type Snapshot, type SwapChoice, type UnlinkedPage,
@@ -43,12 +43,11 @@ type RuleOutcome = { ok: true; projects: Project[] } | { ok: false; error: Extra
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** What changed on a page between two versions, and how to undo it. Rules and the weekly review change focus, lifecycle and next-action fields. */
+/** What changed on a page between two versions, and how to undo it. Rules and the weekly review change focus, stage and lifecycle fields. */
 function diffNotion(before: NotionInfo, after: NotionInfo): { change: PageChange; revert: PageChange } | undefined {
   const change: PageChange = {};
   const revert: PageChange = {};
   if (before.focus !== after.focus) { change.focus = after.focus; revert.focus = before.focus; }
-  if (before.nextAction !== after.nextAction) { change.nextAction = after.nextAction ?? null; revert.nextAction = before.nextAction ?? null; }
   if (before.stage !== after.stage) { change.stage = after.stage; revert.stage = before.stage; }
   if (before.stageChangedAt !== after.stageChangedAt) { change.stageChangedAt = after.stageChangedAt ?? null; revert.stageChangedAt = before.stageChangedAt ?? null; }
   if (before.life !== after.life) { change.life = after.life; revert.life = before.life; }
@@ -196,11 +195,11 @@ export class DashboardService {
 
   // ---------- changes
 
-  private busy(): Result | undefined {
+  private busy(): Result<never> | undefined {
     return this.scanning ? fail('busy', 'A scan is running. Try again in a moment.') : undefined;
   }
 
-  private async backendFor(needsSchema: boolean): Promise<{ backend: NotionBackend } | { error: Result }> {
+  private async backendFor(needsSchema: boolean): Promise<{ backend: NotionBackend } | { error: Result<never> }> {
     const { token } = await this.d.tokens.get();
     if (!token) return { error: fail('no-notion', 'Add a Notion token in settings first.') };
     if (needsSchema && this.notion.state === 'schema-missing') return { error: fail('schema-missing', 'The Notion database is missing properties the app needs. Run npm run notion:setup to review them, then npm run notion:setup -- --apply to add them, then rescan.') };
@@ -303,19 +302,22 @@ export class DashboardService {
     return undefined;
   }
 
-  async setNextAction(name: string, text: string | null): Promise<Result> {
+  /** Adds an unchecked to-do to the end of the project's Notion page, so it becomes its last ship criterion. */
+  async addCriterion(name: string, text: string): Promise<Result> {
     const busy = this.busy();
     if (busy) return busy;
+    const clean = text.trim();
+    if (!clean) return fail('invalid', 'Write the criterion first.');
     const p = this.projects.find((x) => x.name === name);
-    const e = p ? this.eligible(this.projects, name) : undefined;
-    if (!p) return fail('not-found', `No project named ${name}.`);
-    if (e && !e.ok) return { ok: false, error: e.error };
-    const clean = text?.trim() || null;
-    const b = await this.backendFor(true);
+    const e = this.eligible(this.projects, name);
+    if (!p || (e && !e.ok)) return { ok: false, error: e && !e.ok ? e.error : { code: 'not-found', message: `No project named ${name}.` } };
+    const b = await this.backendFor(false);
     if ('error' in b) return b.error;
-    try { await b.backend.setProperties(p.notion!.pageId, { nextAction: clean }); }
-    catch (err) { return fail('notion-write-failed', `Could not save the next action: ${msg(err)}`); }
-    await this.replace({ ...p, notion: { ...p.notion!, nextAction: clean ?? undefined } });
+    let added: Criterion;
+    try { added = await b.backend.appendCriterion(p.notion!.pageId, clean); }
+    catch (err) { return fail('notion-write-failed', `Could not add the criterion to Notion: ${msg(err)}`); }
+    const current = this.projects.find((x) => x.name === name) ?? p;
+    await this.replace({ ...current, notion: { ...current.notion!, criteria: [...current.notion!.criteria, added] } });
     return ok();
   }
 
@@ -380,12 +382,56 @@ export class DashboardService {
    */
   async applyReview(plan: ReviewPlan): Promise<Result<ReviewOutcome>> {
     const before = this.projects;
-    const r = await this.applyRule((ps) => {
+    const rule = (ps: Project[]): RuleOutcome => {
       const out = applyReview(ps, plan);
       if (out.ok) return out;
       return { ok: false, error: { code: out.error.code === 'duplicate' ? 'invalid' : out.error.code, message: out.error.message } };
+    };
+    // New criteria go in first, so a review that cannot add them changes nothing. Checking the rules
+    // up front means a rejected review never touches Notion.
+    const busy = this.busy();
+    if (busy) return busy;
+    const check = rule(this.projects);
+    if (!check.ok) return { ok: false, error: check.error };
+    const toAdd = plan.decisions.flatMap((d) => {
+      const text = d.action === 'keep' || d.action === 'focus' ? d.addCriterion?.trim() : undefined;
+      const p = this.projects.find((x) => x.name === d.name);
+      return text && p?.notion ? [{ name: d.name, pageId: p.notion.pageId, title: p.notion.title, text }] : [];
     });
-    if (!r.ok) return r;
+    const added: Array<{ name: string; criterion: Criterion }> = [];
+    let backend: NotionBackend | undefined;
+    const undoAdded = async () => {
+      let undone = true;
+      for (const a of added) { try { await backend!.deleteBlock(a.criterion.blockId!); } catch { undone = false; } }
+      return undone;
+    };
+    if (toAdd.length) {
+      // Property changes need the full schema. Check before adding anything, so a review that will be refused adds nothing.
+      const changesProps = check.projects.some((p) => { const was = this.projects.find((x) => x.name === p.name); return was?.notion && p.notion && diffNotion(was.notion, p.notion); });
+      const b = await this.backendFor(changesProps);
+      if ('error' in b) return b.error;
+      backend = b.backend;
+      for (const a of toAdd) {
+        try { added.push({ name: a.name, criterion: await b.backend.appendCriterion(a.pageId, a.text) }); }
+        catch (err) {
+          const undone = await undoAdded();
+          return fail('notion-write-failed', `Could not add the criterion to ${a.title} in Notion: ${msg(err)}.${added.length ? (undone ? ' Criteria already added were removed.' : ' Some criteria already added could not be removed and may need deleting in Notion.') : ''} Nothing changed in the app.`);
+        }
+      }
+    }
+    const r = await this.applyRule(rule);
+    if (!r.ok) {
+      if (added.length && !(await undoAdded())) r.error.message += ' Some criteria it added could not be removed from Notion.';
+      return r;
+    }
+    if (added.length) {
+      this.projects = this.projects.map((p) => {
+        const mine = added.filter((a) => a.name === p.name).map((a) => a.criterion);
+        return mine.length && p.notion ? { ...p, notion: { ...p.notion, criteria: [...p.notion.criteria, ...mine] } } : p;
+      });
+      await this.d.cache.save({ scannedAt: this.scannedAt, projects: this.projects });
+      for (const name of new Set(added.map((a) => a.name))) this.emit({ kind: 'project', project: this.projects.find((p) => p.name === name)! });
+    }
     const changed = this.projects.filter((p) => { const b = before.find((x) => x.name === p.name); return b?.notion && p.notion && diffNotion(b.notion, p.notion); }).length;
 
     const now = this.now();
@@ -401,7 +447,7 @@ export class DashboardService {
     }
     await this.d.settings.save({ lastReviewAt: now.toISOString() });
     await this.emitMeta();
-    return ok({ changed, notesWritten, notesFailed });
+    return ok({ changed, criteriaAdded: added.length, notesWritten, notesFailed });
   }
 
   // ---------- inbox

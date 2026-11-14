@@ -165,8 +165,8 @@ export function buildInsights(projects: Project[], now: Date, commits: { c1: num
       const quiet = flags(p, now).find((f) => f.code === 'no-commits');
       if (quiet) out.push({ id: `quiet-${p.name}`, tone: 'warn', glyph: '…', lead: `${p.notion!.title} is in focus but quiet.`, text: `${quiet.text}.` });
     }
-    const noNext = live.filter((p) => !p.notion!.nextAction);
-    if (noNext.length) out.push({ id: 'no-next', tone: 'warn', glyph: '?', lead: `${plural(noNext.length, 'active project')} ${noNext.length === 1 ? 'has' : 'have'} no next action:`, text: `${noNext.map((p) => p.notion!.title).join(', ')}.` });
+    const noCriteria = live.filter((p) => p.notion!.criteria.length === 0);
+    if (noCriteria.length) out.push({ id: 'no-criteria', tone: 'warn', glyph: '?', lead: `${plural(noCriteria.length, 'active project')} ${noCriteria.length === 1 ? 'has' : 'have'} no ship criteria:`, text: `${noCriteria.map((p) => p.notion!.title).join(', ')}.` });
   }
 
   if (commits.c1 > 0 || commits.c0 > 0) {

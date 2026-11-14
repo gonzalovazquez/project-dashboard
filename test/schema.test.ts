@@ -11,14 +11,14 @@ const complete = () => ({
     ...live().properties,
     Focus: { type: 'checkbox' },
     Lifecycle: { type: 'select', select: { options: [{ id: '1', name: 'Active', color: 'green' }, { id: '2', name: 'Parked', color: 'yellow' }, { id: '3', name: 'Killed', color: 'red' }] } },
-    'Next action': { type: 'rich_text' }, 'Stage changed': { type: 'date' }, 'Park reason': { type: 'rich_text' }, 'Revisit on': { type: 'date' },
+    'Stage changed': { type: 'date' }, 'Park reason': { type: 'rich_text' }, 'Revisit on': { type: 'date' },
   },
 });
 
 describe('diffSchema', () => {
-  it('finds the six missing properties on the current database', () => {
+  it('finds the five missing properties on the current database', () => {
     const d = diffSchema(live());
-    expect(d.missing.map((p) => p.name)).toEqual(['Focus', 'Lifecycle', 'Next action', 'Stage changed', 'Park reason', 'Revisit on']);
+    expect(d.missing.map((p) => p.name)).toEqual(['Focus', 'Lifecycle', 'Stage changed', 'Park reason', 'Revisit on']);
     expect(d.wrongType).toEqual([]);
     expect(d.missingStages).toEqual([]);
     expect(d.titleOk).toBe(true);
@@ -61,9 +61,9 @@ describe('buildSchemaUpdate', () => {
   it('only adds. It never removes or renames', () => {
     const ds = live();
     const u = buildSchemaUpdate(diffSchema(ds), ds);
-    expect(Object.keys(u)).toEqual(['Focus', 'Lifecycle', 'Next action', 'Stage changed', 'Park reason', 'Revisit on']);
+    expect(Object.keys(u)).toEqual(['Focus', 'Lifecycle', 'Stage changed', 'Park reason', 'Revisit on']);
     expect(u.Focus).toEqual({ checkbox: {} });
-    expect(u['Next action']).toEqual({ rich_text: {} });
+    expect(u['Park reason']).toEqual({ rich_text: {} });
     expect(u['Stage changed']).toEqual({ date: {} });
     expect(u.Lifecycle.select.options.map((o: { name: string }) => o.name)).toEqual(['Active', 'Parked', 'Killed']);
   });

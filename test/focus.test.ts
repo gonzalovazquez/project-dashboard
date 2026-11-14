@@ -31,12 +31,13 @@ describe('progress and forecast', () => {
 
 describe('flags', () => {
   const stage = (days: number) => daysAgo(days).toISOString();
-  it('flags long Beta stays, missing next action, and quiet focus projects', () => {
-    const p = project({ name: 'a', pulse: { score: 1, level: 'Cooling', lastActivityDays: 22 } }, { stage: 'Beta', stageChangedAt: stage(60), focus: true, criteria: crit(1, 3) });
-    expect(flags(p, NOW).map((f) => f.code)).toEqual(['stuck-beta', 'no-next', 'no-commits']);
+  it('flags long Beta stays, missing ship criteria, and quiet focus projects', () => {
+    const p = project({ name: 'a', pulse: { score: 1, level: 'Cooling', lastActivityDays: 22 } }, { stage: 'Beta', stageChangedAt: stage(60), focus: true, criteria: [] });
+    expect(flags(p, NOW).map((f) => f.code)).toEqual(['stuck-beta', 'no-criteria', 'no-commits']);
+    expect(flags({ ...p, notion: { ...p.notion!, criteria: crit(1, 3) } }, NOW).map((f) => f.code)).toEqual(['stuck-beta', 'no-commits']);
   });
   it('flags non-focus projects as quiet only after 21 days', () => {
-    const base = { stage: 'In progress' as const, stageChangedAt: stage(5), nextAction: 'x', criteria: crit(1, 3) };
+    const base = { stage: 'In progress' as const, stageChangedAt: stage(5), criteria: crit(1, 3) };
     expect(flags(project({ name: 'a', pulse: { score: 0, level: 'Warm', lastActivityDays: 20 } }, base), NOW)).toEqual([]);
     expect(flags(project({ name: 'a', pulse: { score: 0, level: 'Cooling', lastActivityDays: 22 } }, base), NOW).map((f) => f.code)).toEqual(['quiet']);
   });
@@ -56,7 +57,7 @@ describe('ranking and health', () => {
     expect(queue([early, slow, quick]).map((p) => p.name)).toEqual(['quick', 'slow', 'early']);
   });
   it('keeps health within 0..100', () => {
-    const best = project({ name: 'a', pulse: { score: 9, level: 'Hot', lastActivityDays: 0 } }, { criteria: crit(5, 5), nextAction: 'x', stageChangedAt: daysAgo(0).toISOString() });
+    const best = project({ name: 'a', pulse: { score: 9, level: 'Hot', lastActivityDays: 0 } }, { criteria: crit(5, 5), stageChangedAt: daysAgo(0).toISOString() });
     const worst = project({ name: 'b', pulse: { score: 0, level: 'Dormant', lastActivityDays: 80 } }, { criteria: crit(0, 5), stage: 'Beta', stageChangedAt: daysAgo(200).toISOString(), focus: true });
     expect(health(best, NOW)).toBe(100);
     expect(health(worst, NOW)).toBeGreaterThanOrEqual(0);

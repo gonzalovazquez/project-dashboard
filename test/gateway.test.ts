@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPropertyUpdate, createGateway } from '../src/main/notion/gateway.js';
-import { makeFakeNotion, page, todo } from './fakeNotion.js';
+import { heading, makeFakeNotion, page, para, todo } from './fakeNotion.js';
 
 describe('buildPropertyUpdate', () => {
   it('includes only the fields that were given', () => {
@@ -9,20 +9,19 @@ describe('buildPropertyUpdate', () => {
   });
   it('maps every field to the right Notion shape', () => {
     expect(buildPropertyUpdate({
-      stage: 'Beta', focus: false, life: 'parked', nextAction: 'Fix it', stageChangedAt: '2026-10-12', parkReason: 'blocked', revisitOn: '2026-11-12',
+      stage: 'Beta', focus: false, life: 'parked', stageChangedAt: '2026-10-12', parkReason: 'blocked', revisitOn: '2026-11-12',
     })).toEqual({
       Status: { status: { name: 'Beta' } },
       Focus: { checkbox: false },
       Lifecycle: { select: { name: 'Parked' } },
-      'Next action': { rich_text: [{ type: 'text', text: { content: 'Fix it' } }] },
       'Stage changed': { date: { start: '2026-10-12' } },
       'Park reason': { rich_text: [{ type: 'text', text: { content: 'blocked' } }] },
       'Revisit on': { date: { start: '2026-11-12' } },
     });
   });
   it('clears text and dates with null', () => {
-    expect(buildPropertyUpdate({ nextAction: null, parkReason: '', revisitOn: null, stageChangedAt: null })).toEqual({
-      'Next action': { rich_text: [] }, 'Park reason': { rich_text: [] }, 'Revisit on': { date: null }, 'Stage changed': { date: null },
+    expect(buildPropertyUpdate({ parkReason: '', revisitOn: null, stageChangedAt: null })).toEqual({
+      'Park reason': { rich_text: [] }, 'Revisit on': { date: null }, 'Stage changed': { date: null },
     });
   });
 });
@@ -66,8 +65,35 @@ describe('gateway reads', () => {
 describe('gateway writes', () => {
   it('updates properties on the right page', async () => {
     const n = makeFakeNotion();
-    await createGateway(n.api).setProperties('p1', { focus: true, nextAction: 'Ship' });
-    expect(n.calls).toEqual([{ op: 'pages.update', args: { page_id: 'p1', properties: { Focus: { checkbox: true }, 'Next action': { rich_text: [{ type: 'text', text: { content: 'Ship' } }] } } } }]);
+    await createGateway(n.api).setProperties('p1', { focus: true, parkReason: 'Later' });
+    expect(n.calls).toEqual([{ op: 'pages.update', args: { page_id: 'p1', properties: { Focus: { checkbox: true }, 'Park reason': { rich_text: [{ type: 'text', text: { content: 'Later' } }] } } } }]);
+  });
+  const todoBlock = (content: string) => ({ object: 'block', type: 'to_do', to_do: { rich_text: [{ type: 'text', text: { content } }], checked: false } });
+  it('adds a Planning section with the to-do when the page has none, and returns it as a criterion, hours and all', async () => {
+    const n = makeFakeNotion();
+    const c = await createGateway(n.api).appendCriterion('p1', 'Deploy to production (4h)');
+    expect(n.calls).toEqual([{ op: 'blocks.append', args: { block_id: 'p1', children: [
+      { object: 'block', type: 'heading_2', heading_2: { rich_text: [{ type: 'text', text: { content: 'Planning' } }] } },
+      todoBlock('Deploy to production (4h)'),
+    ] } }]);
+    expect(c).toEqual({ blockId: 'new-block-2', title: 'Deploy to production', hours: 4, done: false, doneOn: undefined });
+  });
+  it('inserts right after the last to-do in the Planning section, ahead of later notes and sections', async () => {
+    const n = makeFakeNotion();
+    n.blocks.p1 = [heading('h0', 'Plan'), todo('x', 'Not a criterion'), heading('h1', '📋 Planning'), todo('t1', 'One'), heading('h2', 'Phase 2', 3), todo('t2', 'Two'), para('n', 'notes'), heading('h3', 'ADR 001')];
+    await createGateway(n.api).appendCriterion('p1', 'Three');
+    expect(n.calls[0].args).toEqual({ block_id: 'p1', position: { type: 'after_block', after_block: { id: 't2' } }, children: [todoBlock('Three')] });
+  });
+  it('inserts right after the heading when the Planning section is empty', async () => {
+    const n = makeFakeNotion();
+    n.blocks.p1 = [heading('h1', 'Planning', 1), para('p', 'An intro')];
+    await createGateway(n.api).appendCriterion('p1', 'First');
+    expect(n.calls[0].args.position).toEqual({ type: 'after_block', after_block: { id: 'h1' } });
+  });
+  it('deletes a block by id', async () => {
+    const n = makeFakeNotion();
+    await createGateway(n.api).deleteBlock('b9');
+    expect(n.calls).toEqual([{ op: 'blocks.delete', args: { block_id: 'b9' } }]);
   });
   it('skips the API call when there is nothing to change', async () => {
     const n = makeFakeNotion();

@@ -10,7 +10,7 @@ describe('refreshProject', () => {
     const a = (await h.svc.getSnapshot()).projects.find((p) => p.name === 'alpha')!;
     expect(a).toMatchObject({ dirty: true });
     expect(a.weekly.at(-1)).toBe(9);
-    expect(a.notion).toMatchObject({ pageId: 'pa', focus: true, nextAction: 'Ship it' });
+    expect(a.notion).toMatchObject({ pageId: 'pa', focus: true });
     expect(h.updates.at(-1)).toMatchObject({ kind: 'project' });
     expect(calls(h)).toEqual([]);
   });

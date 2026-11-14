@@ -87,7 +87,8 @@ export interface DashboardApi {
   getSnapshot(): Promise<Snapshot>;
   startScan(): Promise<void>;
   onProjectUpdate(listener: (update: ProjectUpdate) => void): () => void;
-  setNextAction(name: string, text: string | null): Promise<Result>;
+  /** Adds an unchecked ship criterion to the end of the project's Notion page. */
+  addCriterion(name: string, text: string): Promise<Result>;
   setCriterion(name: string, blockId: string, checked: boolean): Promise<Result>;
   promote(name: string, swap?: SwapChoice): Promise<Result>;
   park(name: string, reason: string, revisitOn?: string): Promise<Result>;
@@ -119,7 +120,7 @@ export interface DashboardApi {
 export const CHANNELS = {
   getSnapshot: 'dashboard:getSnapshot',
   startScan: 'dashboard:startScan',
-  setNextAction: 'dashboard:setNextAction',
+  addCriterion: 'dashboard:addCriterion',
   setCriterion: 'dashboard:setCriterion',
   promote: 'dashboard:promote',
   park: 'dashboard:park',

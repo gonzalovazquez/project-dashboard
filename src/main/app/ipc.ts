@@ -36,6 +36,8 @@ function swap(v: unknown): SwapChoice | undefined {
 }
 
 const MAX_DECISIONS = 100;
+/** Notion caps one rich text run at 2000 characters. */
+const CRITERION_MAX = 2000;
 function plan(v: unknown): ReviewPlan {
   if (typeof v !== 'object' || v === null) throw new BadInput('The review is not valid.');
   const list = (v as Record<string, unknown>).decisions;
@@ -45,7 +47,7 @@ function plan(v: unknown): ReviewPlan {
     const o = raw as Record<string, unknown>;
     const name = str(o.name, 'name', 255);
     switch (o.action) {
-      case 'keep': case 'focus': return { name, action: o.action, nextAction: optStr(o.nextAction, 'nextAction', 200) };
+      case 'keep': case 'focus': return { name, action: o.action, addCriterion: optStr(o.addCriterion, 'addCriterion', CRITERION_MAX) };
       case 'park': return { name, action: 'park', reason: str(o.reason, 'reason', 1000), revisitOn: date(o.revisitOn, 'revisitOn') ?? (() => { throw new BadInput('Choose when to revisit it.'); })() };
       case 'kill': return { name, action: 'kill' };
       default: throw new BadInput('Unknown review action.');
@@ -111,7 +113,7 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
 
   handle(CHANNELS.getSnapshot, () => svc.getSnapshot());
   handle(CHANNELS.startScan, async () => { await svc.startScan(); });
-  handle(CHANNELS.setNextAction, (name, text) => svc.setNextAction(str(name, 'name', 255), optStr(text, 'text') ?? null));
+  handle(CHANNELS.addCriterion, (name, text) => svc.addCriterion(str(name, 'name', 255), str(text, 'text', CRITERION_MAX)));
   handle(CHANNELS.setCriterion, (name, blockId, checked) => svc.setCriterion(str(name, 'name', 255), str(blockId, 'blockId', 100), bool(checked, 'checked')));
   handle(CHANNELS.promote, (name, s) => svc.promote(str(name, 'name', 255), swap(s)));
   handle(CHANNELS.park, (name, reason, revisitOn) => svc.park(str(name, 'name', 255), str(reason, 'reason', 1000), date(revisitOn, 'revisitOn')));

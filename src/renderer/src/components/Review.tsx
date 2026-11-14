@@ -7,11 +7,12 @@ import { plural } from '../viewmodel/format.js';
 import { writeAccess } from '../viewmodel/deepdive.js';
 import { inDays } from '../viewmodel/library.js';
 import {
-  buildPlan, candidates, decide, initialDraft, planLines, problems, setNextAction, stalledProjects, toggleFocus, WEEKDAYS, weekInReview,
+  buildPlan, candidates, decide, initialDraft, planLines, problems, setNewCriterion, stalledProjects, toggleFocus, WEEKDAYS, weekInReview,
   type Choice, type Draft,
 } from '../viewmodel/review.js';
 import { NoticeBar, useAction } from './actions.js';
 import { Pill } from './Bits.js';
+import { nextStep } from '../../../shared/rules.js';
 
 export interface ReviewState { step: 1 | 2 | 3 | 4; draft: Draft; outcome?: ReviewOutcome }
 export const newReview = (ps: Project[]): ReviewState => ({ step: 1, draft: initialDraft(ps) });
@@ -41,7 +42,7 @@ export function Review({ snap, now, state, onState, onFinish }: Props) {
     return (
       <section className="card" data-view="review-done" aria-labelledby="rv-done">
         <h3 id="rv-done">Review complete</h3>
-        <p>{plural(outcome.changed, 'project')} changed in Notion. {plural(outcome.notesWritten, 'dated note')} added to project pages.</p>
+        <p>{plural(outcome.changed, 'project')} changed in Notion.{outcome.criteriaAdded > 0 ? ` ${plural(outcome.criteriaAdded, 'ship criterion', 'ship criteria')} added.` : ''} {plural(outcome.notesWritten, 'dated note')} added to project pages.</p>
         {outcome.notesFailed.length > 0 && <p className="banner warn" data-banner="notes">The review was applied, but the note could not be written for {outcome.notesFailed.join(', ')}. Add it in Notion by hand if you want it on record.</p>}
         <div><button className="btn primary" onClick={onFinish}>Back to Overview</button></div>
       </section>
@@ -150,15 +151,17 @@ export function Review({ snap, now, state, onState, onFinish }: Props) {
 
       {step === 4 && (
         <section className="card" aria-labelledby="rv4" data-review-step="4">
-          <div className="hd"><h3 id="rv4">Next actions</h3><span className="mut small">One small thing to do first on each focus project</span></div>
+          <div className="hd"><h3 id="rv4">Next up</h3><span className="mut small">The next ship criterion on each focus project</span></div>
           {draft.focus.length === 0 ? <p className="mut">No project is in focus. Step 3 picks the next three.</p> : (
             <ul className="decisions">
               {draft.focus.map((name) => {
                 const p = find(name);
+                const step = p && nextStep(p);
                 return (
                   <li key={name} data-next={name}>
                     <label className="fld">{title(p, name)}
-                      <input value={draft.nextActions[name] ?? p?.notion?.nextAction ?? ''} maxLength={200} onChange={(e) => setDraft(setNextAction(draft, name, e.target.value))} placeholder="The next thing to do" data-field="next" />
+                      <span className="mut small" data-testid="next-step">{step ? `Next: ${step}` : 'No ship criteria yet. Add the first one.'}</span>
+                      <input value={draft.newCriteria[name] ?? ''} maxLength={2000} onChange={(e) => setDraft(setNewCriterion(draft, name, e.target.value))} placeholder={step ? 'Add another criterion (optional)' : 'What has to be true before this ships?'} data-field="criterion" />
                     </label>
                   </li>
                 );

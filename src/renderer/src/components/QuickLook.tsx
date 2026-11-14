@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Snapshot } from '../../../shared/ipc.js';
 import type { Project } from '../../../shared/types.js';
-import { forecast, health, progress, stageDays } from '../../../shared/rules.js';
+import { forecast, health, progress, stageDays, nextStep } from '../../../shared/rules.js';
 import { PULSE_COLOR, STAGE_COLOR } from '../tokens.js';
 import { ago, fmtDate, plural } from '../viewmodel/format.js';
 import { STATE_LABEL, stateOf } from '../viewmodel/library.js';
@@ -25,7 +25,7 @@ export function QuickLook({ snap, project: p, now, onClose, onOpenDeepDive }: Pr
     ...(n ? [['Stage', `${n.stage}${n.stageChangedAt ? `, ${plural(stageDays(p, now), 'day')}` : ''}`] as [string, string]] : []),
     ...(pr !== undefined ? [['Progress', `${Math.round(pr * 100)}%, ${n!.criteria.filter((c) => c.done).length} of ${n!.criteria.length} criteria`] as [string, string]] : []),
     ...(f ? [['Forecast', f.remaining === 0 ? 'Ready to ship' : fmtDate(new Date(f.date))] as [string, string]] : []),
-    ...(n ? [['Next action', n.nextAction ?? 'None set'] as [string, string]] : []),
+    ...(n ? [['Next', nextStep(p) ?? 'No ship criteria yet'] as [string, string]] : []),
     ...(n?.life === 'parked' ? [['Parked', `${n.parkReason ?? 'No reason'}${n.revisitOn ? `, revisit ${fmtDate(new Date(n.revisitOn))}` : ''}`] as [string, string]] : []),
     ['Last commit', p.pulse.lastActivityDays === null ? 'None' : `${ago(p.pulse.lastActivityDays)} ago`],
     ['Complexity', `${p.complexity.score}, ${p.complexity.level}`],

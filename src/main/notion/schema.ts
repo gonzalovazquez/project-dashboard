@@ -8,7 +8,6 @@ export interface RequiredProperty { name: string; type: 'checkbox' | 'select' | 
 export const REQUIRED_PROPERTIES: RequiredProperty[] = [
   { name: PROPS.focus, type: 'checkbox' },
   { name: PROPS.life, type: 'select', options: [{ name: 'Active', color: 'green' }, { name: 'Parked', color: 'yellow' }, { name: 'Killed', color: 'red' }] },
-  { name: PROPS.nextAction, type: 'rich_text' },
   { name: PROPS.stageChanged, type: 'date' },
   { name: PROPS.parkReason, type: 'rich_text' },
   { name: PROPS.revisitOn, type: 'date' },
