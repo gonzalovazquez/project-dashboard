@@ -1,4 +1,5 @@
 import { APPEARANCES, CHANNELS, fail, type LinkKind, type Result, type SettingsPatch, type SwapChoice } from '../../shared/ipc.js';
+import { IDEA_MAX } from '../../shared/planning.js';
 import type { ReviewDecision, ReviewPlan } from '../../shared/review.js';
 import type { DashboardService } from './service.js';
 
@@ -88,7 +89,7 @@ function patch(v: unknown): SettingsPatch {
   if (o.onboarded !== undefined) out.onboarded = bool(o.onboarded, 'onboarded');
   if (o.reviewReminder !== undefined) out.reviewReminder = bool(o.reviewReminder, 'reviewReminder');
   if (o.appearance !== undefined) {
-    if (typeof o.appearance !== 'string' || !(APPEARANCES as string[]).includes(o.appearance)) throw new BadInput('Appearance must be system, light or dark.');
+    if (typeof o.appearance !== 'string' || !(APPEARANCES as string[]).includes(o.appearance)) throw new BadInput('Appearance must be system, light, dark or matrix.');
     out.appearance = o.appearance as SettingsPatch['appearance'];
   }
   return out;
@@ -131,6 +132,8 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
   handle(CHANNELS.saveSettings, (p) => svc.saveSettings(patch(p)));
   handle(CHANNELS.setToken, (t) => svc.setToken(t === null ? null : str(t, 'token', 500)));
   handle(CHANNELS.openLink, (name, k) => svc.openLink(str(name, 'name', 255), kind(k)));
+  handle(CHANNELS.openIdea, (id) => svc.openIdea(str(id, 'pageId', 64)));
+  handle(CHANNELS.startNewProject, (idea) => svc.startNewProject(str(idea, 'idea', IDEA_MAX)));
 }
 
 export type { Result };

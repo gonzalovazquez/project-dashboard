@@ -26,6 +26,27 @@
     color-scheme: dark;
   }
 }
+/*
+ * Matrix: phosphor green on black, in monospace. The window runs in native dark mode underneath. Stages and warnings
+ * keep distinct hues (a lime for General Available, violet for Beta, amber and red for warnings) so nothing that
+ * carries meaning collapses into one green.
+ */
+:root[data-theme="matrix"] {
+  --win: #000000; --side: rgba(0, 14, 5, 0.9); --bg: #010804; --card: #03100a;
+  --label: #b8ffc8; --label2: rgba(0, 255, 65, 0.66); --label3: rgba(0, 255, 65, 0.36);
+  --sep: rgba(0, 255, 65, 0.2); --fill: rgba(0, 255, 65, 0.08); --fill2: rgba(0, 255, 65, 0.15);
+  --btn: #052a12; --zebra: rgba(0, 255, 65, 0.03); --hover: rgba(0, 255, 65, 0.1); --select: rgba(0, 255, 65, 0.2);
+  --blue: #00e05a; --green: #b6ff5c; --orange: #ffb000; --red: #ff5f56; --purple: #c68cff; --teal: #2bd9c4; --gray: #6f9f7b; --indigo: #7fe0a8; --yellow: #e8e85a;
+  --series-1: #00e05a; --series-2: #ffb000; --series-3: #2bd9ff; --series-other: #6f9f7b;
+  --stage-0: #0b5d2a; --stage-1: #10893c; --stage-2: #1cc055; --stage-3: #7dff9c; --status-serious: #ff7a45;
+  --shadow: 0 0 0 0.5px rgba(0, 255, 65, 0.22), 0 0 12px rgba(0, 255, 65, 0.06);
+  --font: var(--mono);
+  accent-color: #00e05a;
+  color-scheme: dark;
+}
+:root[data-theme="matrix"] h1, :root[data-theme="matrix"] h2, :root[data-theme="matrix"] h3 { text-shadow: 0 0 8px rgba(0, 255, 65, 0.45); }
+:root[data-theme="matrix"] .btn.primary { color: #00140a; font-weight: 600; }
+:root[data-theme="matrix"] ::selection { background: rgba(0, 255, 65, 0.35); color: #000; }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
@@ -247,6 +268,8 @@ svg.heat rect { cursor: default; }
 .btn.danger.solid { background: var(--red); color: #fff; }
 .btn[disabled].primary, .btn.primary[disabled] { opacity: 0.45; }
 .pa { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.hd .pa { align-items: center; gap: 10px; }
+td.clip { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .flt { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--label2); }

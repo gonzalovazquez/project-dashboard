@@ -91,11 +91,12 @@ troubleshooting table in [`docs/notion-setup.md`](docs/notion-setup.md) covers t
 |---|---|
 | **Overview** | The executive summary: one headline, six tiles, forecast ship dates, commits per week, projects by stage over time, progress against complexity, time in stage, and a sortable portfolio table. Click a focus project to open it |
 | **Deep dive** | One focus project in detail: burnup chart with a forecast band, the ship checklist (ticking writes to Notion, adding appends a to-do to the page, and the first open item is tagged Next), commit heatmap, health breakdown, languages, details and recent commits, and **Mark shipped** once every criterion is done |
+| **Planning** | Ideas in your Brainstorming database that have no folder yet, with their stage and next criterion, plus pages that are underway but have no folder here. **New project** opens Claude with a prompt that runs the `brainstorm-plan` and `build-budget` skills on your idea; when its page is in Notion, come back and it shows up here |
 | **Weekly review** | Four steps: look back at the week, decide on every stalled project (keep going, park or kill), pick the next three, see each one's next criterion and add one where it has none. Applying is all or nothing and leaves a dated note on each reviewed Notion page. A notification reminds you on the day and time you choose |
 | **All projects** | Every folder, filtered by state, activity, complexity or technology, with search. Click a row for a quick look |
 | **Inbox** | Folders with no Notion page: add one, link to a page that already exists, group it into another project (the same product in several folders), or ignore it |
 | **Parked / Shipped** | Parked projects with the reason and revisit date (due ones are marked), and projects that reached General Available |
-| **Settings** | Folder, Notion connection, appearance and the review reminder |
+| **Settings** | Folder, Notion connection, appearance (system, light, dark, or Matrix: green on black) and the review reminder |
 
 The app keeps itself current: it watches the Development folder for folders coming and going, and each project's `.git`
 folder for commits, and refreshes just what changed. It also rescans when you return to it after ten minutes away.
