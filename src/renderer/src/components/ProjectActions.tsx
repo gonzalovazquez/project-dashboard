@@ -3,8 +3,9 @@ import type { Project } from '../../../shared/types.js';
 import { useAction, NoticeBar } from './actions.js';
 import { Sheet } from './Sheet.js';
 import { actionsFor, inDays } from '../viewmodel/library.js';
+import { WIP_LIMIT } from '../../../shared/types.js';
 
-type Which = 'promote' | 'park' | 'kill';
+type Which = 'promote' | 'park' | 'kill' | 'reopen';
 const title = (p: Project) => p.notion?.title ?? p.name;
 
 interface Props {
@@ -39,12 +40,14 @@ export function ProjectActions({ projects, project, now, canWrite, onDone, why, 
       <span className="pa" data-actions={name}>
         {a.promote !== 'no' && <button className="btn" disabled={off} title={hint} data-action="promote" onClick={() => setOpen('promote')}>Make focus</button>}
         {a.unpark && <button className="btn" disabled={off} title={hint} data-action="unpark" onClick={unpark}>Unpark</button>}
+        {a.reopen && <button className="btn" disabled={off} title={hint} data-action="reopen" onClick={() => setOpen('reopen')}>Reopen</button>}
         {a.park && <button className="btn" disabled={off} title={hint} data-action="park" onClick={() => setOpen('park')}>Park</button>}
         {a.kill && <button className="btn danger" disabled={off} title={hint} data-action="kill" onClick={() => setOpen('kill')}>Kill</button>}
       </span>
       {!open && <NoticeBar notice={act.notice} />}
       {open === 'promote' && <PromoteSheet {...{ project, actions: a, now, onClose: close, onDone: () => { close(); onDone?.('promote'); } }} />}
       {open === 'park' && <ParkSheet project={project} now={now} onClose={close} onDone={() => { close(); onDone?.('park'); }} />}
+      {open === 'reopen' && <ReopenSheet project={project} actions={a} onClose={close} onDone={() => { close(); onDone?.('reopen'); }} />}
       {open === 'kill' && <KillSheet project={project} onClose={close} onDone={() => { close(); onDone?.('kill'); }} />}
     </>
   );
@@ -85,6 +88,30 @@ function ParkSheet({ project, now, onClose, onDone }: { project: Project; now: D
         <ParkFields label="Why are you parking it?" {...{ reason, setReason, revisit, setRevisit }} />
         <NoticeBar notice={act.notice} />
         <div className="sheet-foot"><SheetButtons confirm="Park" onClose={onClose} disabled={!ready} busy={act.busy} /></div>
+      </form>
+    </Sheet>
+  );
+}
+
+function ReopenSheet({ project, actions, onClose, onDone }: { project: Project; actions: ReturnType<typeof actionsFor>; onClose: () => void; onDone: () => void }) {
+  const act = useAction();
+  const full = actions.focus.length >= WIP_LIMIT;
+  const [focus, setFocus] = useState(!full);
+  const submit = async () => {
+    const done = focus ? `${title(project)} is back in progress and in focus.` : `${title(project)} is back in progress.`;
+    if (await act.run(() => window.dashboard.reopen(project.name, focus), done)) onDone();
+  };
+  return (
+    <Sheet name="reopen" title={`Reopen ${title(project)}`} onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        <p>Its Notion status goes back to In progress so you can keep iterating. Its ship criteria stay as they are; add new ones for the next round.</p>
+        <label className="fld check">
+          <input type="checkbox" checked={focus} disabled={full} onChange={(e) => setFocus(e.target.checked)} data-field="focus" />
+          {' '}Put it in focus
+        </label>
+        {full && <p className="mut small">All {WIP_LIMIT} focus slots are taken. Reopen it now, then use Make focus to swap it in.</p>}
+        <NoticeBar notice={act.notice} />
+        <div className="sheet-foot"><SheetButtons confirm="Reopen" onClose={onClose} busy={act.busy} /></div>
       </form>
     </Sheet>
   );

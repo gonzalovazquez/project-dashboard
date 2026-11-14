@@ -52,7 +52,8 @@ function createService(): DashboardService {
       await shell.openExternal(url);
     },
     showInFolder: (p) => shell.showItemInFolder(p),
-    setAppearance: (a) => { nativeTheme.themeSource = a; },
+    // Matrix is drawn by the page on top of native dark mode, so the window chrome and vibrancy stay dark.
+    setAppearance: (a) => { nativeTheme.themeSource = a === 'matrix' ? 'dark' : a; },
   });
 }
 

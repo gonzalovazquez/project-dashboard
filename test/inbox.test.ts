@@ -59,7 +59,7 @@ describe('link to an existing page', () => {
   const withSpare = () => { const b = board(); return { ...b, pages: [...b.pages, page('px', 'Garden Planner', 'In progress')] }; };
   it('offers pages no folder matched', async () => {
     const h = await scanned(withSpare());
-    expect((await h.svc.getSnapshot()).unlinkedPages).toEqual([{ id: 'px', title: 'Garden Planner', url: 'https://notion.so/px', stage: 'In progress' }]);
+    expect((await h.svc.getSnapshot()).unlinkedPages).toEqual([{ id: 'px', title: 'Garden Planner', url: 'https://notion.so/px', stage: 'In progress', life: 'active', done: 0, total: 0, next: undefined }]);
   });
   it('pairs the folder with the page and remembers it', async () => {
     const h = await scanned(withSpare());

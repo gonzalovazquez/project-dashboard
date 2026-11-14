@@ -19,10 +19,12 @@ interface Props {
   scanning: boolean;
   scannedAt?: string;
   folder: string;
+  /** Ideas in Notion with no folder yet. */
+  ideas: number;
   onNavigate: (r: Route) => void;
 }
 
-export function Sidebar({ model, route, notion, scanning, scannedAt, folder, onNavigate }: Props) {
+export function Sidebar({ model, route, notion, scanning, scannedAt, folder, ideas, onNavigate }: Props) {
   const Item = ({ to, icon, label, count, alert }: { to: Route; icon: IconName; label: string; count?: number; alert?: boolean }) => (
     <button className="item" aria-current={sameRoute(route, to) ? 'page' : undefined} onClick={() => onNavigate(to)}>
       <Icon name={icon} />
@@ -39,6 +41,7 @@ export function Sidebar({ model, route, notion, scanning, scannedAt, folder, onN
         <h6>Dashboard</h6>
         <Item to={{ view: 'overview' }} icon="grid" label="Overview" />
         <Item to={{ view: 'review' }} icon="check" label="Weekly review" count={model.counts.flagged} alert />
+        <Item to={{ view: 'planning' }} icon="bulb" label="Planning" count={ideas} />
       </nav>
       <nav className="sec" aria-label="Focus">
         <h6><span>Focus</span><span data-testid="focus-count">{used}/{used + model.openSlots}</span></h6>

@@ -5,6 +5,8 @@ import type { Project } from '../../shared/types.js';
 export function applyUpdate(prev: Snapshot | undefined, u: ProjectUpdate): Snapshot | undefined {
   if (u.kind === 'scan-finished') return u.snapshot;
   if (!prev) return prev;
+  // A Notion sync that lands while a scan is running would be replaced by the scan's result anyway.
+  if (u.kind === 'synced') return prev.scanning ? prev : u.snapshot;
   switch (u.kind) {
     case 'scan-started': return { ...prev, scanning: true, scanError: undefined };
     case 'notion': return { ...prev, notion: u.notion };

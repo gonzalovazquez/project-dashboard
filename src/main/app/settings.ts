@@ -30,7 +30,7 @@ export function validatePatch(patch: SettingsPatch): string | undefined {
   }
   if (patch.onboarded !== undefined && typeof patch.onboarded !== 'boolean') return 'The onboarded setting must be true or false.';
   if (patch.reviewReminder !== undefined && typeof patch.reviewReminder !== 'boolean') return 'The reminder setting must be on or off.';
-  if (patch.appearance !== undefined && !APPEARANCES.includes(patch.appearance)) return 'Appearance must be system, light or dark.';
+  if (patch.appearance !== undefined && !APPEARANCES.includes(patch.appearance)) return 'Appearance must be system, light, dark or matrix.';
   return undefined;
 }
 

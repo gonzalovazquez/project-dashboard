@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Planning } from './components/Planning.js';
+import { planningModel } from '../../shared/planning.js';
+import { takeRescanRequest } from './rescan.js';
 import type { Snapshot } from '../../shared/ipc.js';
 import { DeepDive } from './components/DeepDive.js';
 import { NavContext } from './components/nav.js';
@@ -38,6 +41,11 @@ export function App() {
   const [look, setLook] = useState<string>();
   const [review, setReview] = useState<ReviewState>();
   const dark = useDark();
+  const theme = snap?.settings.appearance === 'matrix' ? 'matrix' : undefined;
+  // Matrix swaps the color tokens on top of native dark mode. The other appearances need nothing here.
+  useEffect(() => {
+    if (theme) document.documentElement.dataset.theme = theme; else delete document.documentElement.dataset.theme;
+  }, [theme]);
 
   useEffect(() => {
     let alive = true;
@@ -48,16 +56,30 @@ export function App() {
   }, []);
 
   // Coming back to the app after a while rescans, so a missed file event never leaves stale numbers on screen.
+  // Otherwise it pulls Notion again, which is quick, so edits made there (focus, stage, parking) show up right away.
+  // While the window is open and visible, Notion is pulled again every so often for the same reason.
   const latest = useRef(snap);
   latest.current = snap;
   useEffect(() => {
     const STALE = 10 * 60_000;
+    const SYNC_GAP = 15_000;
+    const POLL = 90_000;
+    let lastSync = Date.now();
+    const sync = () => {
+      const s = latest.current;
+      if (!s || s.scanning || s.notion.state === 'not-configured' || Date.now() - lastSync < SYNC_GAP) return;
+      lastSync = Date.now();
+      void window.dashboard.syncNotion();
+    };
     const refocus = () => {
       const s = latest.current;
-      if (s && !s.scanning && s.scannedAt && Date.now() - Date.parse(s.scannedAt) > STALE) void window.dashboard.startScan();
+      const asked = takeRescanRequest();
+      if (s && !s.scanning && (asked || (s.scannedAt && Date.now() - Date.parse(s.scannedAt) > STALE))) { lastSync = Date.now(); void window.dashboard.startScan(); }
+      else sync();
     };
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') sync(); }, POLL);
     window.addEventListener('focus', refocus);
-    return () => window.removeEventListener('focus', refocus);
+    return () => { window.removeEventListener('focus', refocus); clearInterval(timer); };
   }, []);
 
   // Time-based numbers are computed against the moment the data last changed, not on every render.
@@ -82,6 +104,7 @@ export function App() {
     : current.view === 'project'
       ? { title: snap.projects.find((p) => p.name === current.name)?.notion?.title ?? current.name, subtitle: `Deep dive · ${current.name}` }
       : current.view === 'library' ? { title: 'All projects', subtitle: `${snap.projects.length} folders in ${snap.settings.developmentFolder}` }
+      : current.view === 'planning' ? { title: 'Planning', subtitle: 'Ideas in Notion, and how to start a new one' }
       : current.view === 'inbox' ? { title: 'Inbox', subtitle: 'Folders not in Notion yet' }
       : current.view === 'parked' ? { title: 'Parked', subtitle: 'Set aside, with a date to revisit' }
       : current.view === 'shipped' ? { title: 'Shipped', subtitle: 'Reached General Available' }
@@ -92,7 +115,7 @@ export function App() {
     <NavContext.Provider value={nav}>
     <TipProvider>
     <div className="app">
-      <Sidebar model={model} route={current} notion={snap.notion} scanning={snap.scanning} scannedAt={snap.scannedAt} folder={snap.settings.developmentFolder} onNavigate={setRoute} />
+      <Sidebar model={model} route={current} notion={snap.notion} scanning={snap.scanning} scannedAt={snap.scannedAt} folder={snap.settings.developmentFolder} ideas={planningModel(snap.unlinkedPages).ideas.length} onNavigate={setRoute} />
       <div className="main">
         <Toolbar title={meta.title} subtitle={meta.subtitle} range={current.view === 'overview' ? range : undefined} onRange={setRange} scanning={snap.scanning} onRescan={rescan} onToggleAppearance={toggleAppearance} />
         <div className="content" data-route={current.view}>
@@ -105,6 +128,7 @@ export function App() {
           {current.view === 'overview' && <Overview snap={snap} now={now} range={range} onOpenProject={(name) => setRoute({ view: 'project', name })} />}
           {current.view === 'project' && <DeepDive snap={snap} project={snap.projects.find((p) => p.name === current.name)!} now={now} />}
           {current.view === 'library' && <Library snap={snap} filters={filters} onFilters={setFilters} onQuickLook={setLook} />}
+          {current.view === 'planning' && <Planning snap={snap} />}
           {current.view === 'inbox' && <Inbox snap={snap} onQuickLook={setLook} />}
           {current.view === 'parked' && <Parked snap={snap} now={now} onQuickLook={setLook} />}
           {current.view === 'shipped' && <Shipped snap={snap} now={now} onQuickLook={setLook} />}

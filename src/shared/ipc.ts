@@ -1,8 +1,10 @@
 import type { Project, StagePoint } from './types.js';
+import type { IdeaRow } from './planning.js';
 import type { ReviewOutcome, ReviewPlan } from './review.js';
 
-export type Appearance = 'system' | 'light' | 'dark';
-export const APPEARANCES: Appearance[] = ['system', 'light', 'dark'];
+/** Matrix is a dark theme of its own: the window runs in native dark mode and the page swaps in green-on-black tokens. */
+export type Appearance = 'system' | 'light' | 'dark' | 'matrix';
+export const APPEARANCES: Appearance[] = ['system', 'light', 'dark', 'matrix'];
 
 export type NotionState = 'not-configured' | 'connected' | 'error' | 'schema-missing';
 
@@ -34,8 +36,11 @@ export interface PublicSettings {
   lastReviewAt?: string;
 }
 
-/** A Notion page that no folder is paired with, offered when linking a folder by hand. */
-export interface UnlinkedPage { id: string; title: string; url: string; stage: string }
+/**
+ * A Notion page that no folder is paired with: an idea still being planned, shown on the Planning screen, and offered
+ * when linking a folder by hand.
+ */
+export interface UnlinkedPage extends IdeaRow { url: string }
 
 export interface Snapshot {
   projects: Project[];
@@ -68,6 +73,8 @@ export type ProjectUpdate =
   | { kind: 'scan-started' }
   | { kind: 'project'; project: Project }
   | { kind: 'scan-finished'; snapshot: Snapshot }
+  /** Notion was pulled again without a folder scan, so its stages, focus and criteria may have changed. */
+  | { kind: 'synced'; snapshot: Snapshot }
   | { kind: 'notion'; notion: NotionStatus }
   /** Settings or the list of unlinked pages changed, for example after a save or a link. */
   | { kind: 'meta'; settings: PublicSettings; unlinkedPages: UnlinkedPage[] }
@@ -86,6 +93,8 @@ export interface SettingsPatch { developmentFolder?: string; overrides?: Record<
 export interface DashboardApi {
   getSnapshot(): Promise<Snapshot>;
   startScan(): Promise<void>;
+  /** Pulls Notion again without scanning folders, so edits made in Notion show up. Skipped while a scan runs. */
+  syncNotion(): Promise<void>;
   onProjectUpdate(listener: (update: ProjectUpdate) => void): () => void;
   /** Adds an unchecked ship criterion to the end of the project's Notion page. */
   addCriterion(name: string, text: string): Promise<Result>;
@@ -96,6 +105,8 @@ export interface DashboardApi {
   unpark(name: string): Promise<Result>;
   /** Moves a project whose criteria are all done to General Available and frees its focus slot. */
   markShipped(name: string): Promise<Result>;
+  /** Takes a shipped project back to In progress so it can be worked on again, and into focus when `focus` is true. */
+  reopen(name: string, focus: boolean): Promise<Result>;
   /** Creates a Notion page titled with the folder name, in Not started, and pairs the folder with it. */
   addToNotion(name: string): Promise<Result>;
   /** Folds an untracked folder into a project, so they are tracked as one. Rescans. */
@@ -115,11 +126,16 @@ export interface DashboardApi {
   setToken(token: string | null): Promise<Result>;
   /** Opens a project's GitHub page, Notion page or folder. The interface names the project; the main process looks up the URL. */
   openLink(name: string, kind: LinkKind): Promise<Result>;
+  /** Opens an idea's Notion page. The id is one of the unlinked pages. */
+  openIdea(pageId: string): Promise<Result>;
+  /** Opens a new Claude chat that runs the brainstorm-plan skill on the idea. The new page shows up on the next scan. */
+  startNewProject(idea: string): Promise<Result>;
 }
 
 export const CHANNELS = {
   getSnapshot: 'dashboard:getSnapshot',
   startScan: 'dashboard:startScan',
+  syncNotion: 'dashboard:syncNotion',
   addCriterion: 'dashboard:addCriterion',
   setCriterion: 'dashboard:setCriterion',
   promote: 'dashboard:promote',
@@ -127,6 +143,7 @@ export const CHANNELS = {
   kill: 'dashboard:kill',
   unpark: 'dashboard:unpark',
   markShipped: 'dashboard:markShipped',
+  reopen: 'dashboard:reopen',
   addToNotion: 'dashboard:addToNotion',
   groupFolder: 'dashboard:groupFolder',
   ungroupFolder: 'dashboard:ungroupFolder',
@@ -138,6 +155,8 @@ export const CHANNELS = {
   saveSettings: 'dashboard:saveSettings',
   setToken: 'dashboard:setToken',
   openLink: 'dashboard:openLink',
+  openIdea: 'dashboard:openIdea',
+  startNewProject: 'dashboard:startNewProject',
   /** Main to renderer events. */
   update: 'dashboard:update',
 } as const;

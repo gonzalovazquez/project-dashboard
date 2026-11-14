@@ -316,6 +316,9 @@ describe('links, settings and token', () => {
     expect((await h.svc.getSettings()).appearance).toBe('dark');
     expectFail(await h.svc.saveSettings({ appearance: 'purple' as never }), 'invalid');
     expect(log).toEqual(['system', 'dark']);
+    expect((await h.svc.saveSettings({ appearance: 'matrix' })).ok).toBe(true);
+    expect(log).toEqual(['system', 'dark', 'matrix']);
+    expect((await h.svc.getSnapshot()).settings.appearance).toBe('matrix');
   });
 
   it('never returns the token in settings', async () => {

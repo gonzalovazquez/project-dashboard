@@ -105,6 +105,20 @@ export const kill = (ps: Project[], name: string) => patch(ps, name, { life: 'ki
 /** Brings a parked project back. It does not take a focus slot; promote it separately. */
 export const unpark = (ps: Project[], name: string) => patch(ps, name, { life: 'active', parkReason: undefined, revisitOn: undefined });
 
+/** Shipped and still active, so it can be reopened for another round of work. */
+export const isShipped = (p: Project) => !!p.notion && p.notion.life === 'active' && p.notion.stage === 'General Available';
+
+/**
+ * Takes a shipped project back to In progress so it can be worked on again, and optionally into focus. Its criteria
+ * stay as they are; add new ones for the next round. Focusing it follows the same slot rules as promote.
+ */
+export function reopen(ps: Project[], name: string, now: Date, focus = false): PromoteResult {
+  const p = ps.find((x) => x.name === name);
+  if (!p || !isShipped(p)) return { ok: false, error: 'not-eligible', focus: focusProjects(ps) };
+  if (focus && focusProjects(ps).length >= WIP_LIMIT) return { ok: false, error: 'full', focus: focusProjects(ps) };
+  return { ok: true, projects: patch(ps, name, { stage: 'In progress', stageChangedAt: now.toISOString().slice(0, 10), ...(focus ? { focus: true } : {}) }) };
+}
+
 export type ShipResult =
   | { ok: true; projects: Project[] }
   | { ok: false; error: 'not-found' | 'not-eligible' | 'no-criteria' | 'criteria-open'; open?: number };

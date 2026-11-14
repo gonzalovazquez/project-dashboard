@@ -1,4 +1,5 @@
 import { APPEARANCES, CHANNELS, fail, type LinkKind, type Result, type SettingsPatch, type SwapChoice } from '../../shared/ipc.js';
+import { IDEA_MAX } from '../../shared/planning.js';
 import type { ReviewDecision, ReviewPlan } from '../../shared/review.js';
 import type { DashboardService } from './service.js';
 
@@ -88,7 +89,7 @@ function patch(v: unknown): SettingsPatch {
   if (o.onboarded !== undefined) out.onboarded = bool(o.onboarded, 'onboarded');
   if (o.reviewReminder !== undefined) out.reviewReminder = bool(o.reviewReminder, 'reviewReminder');
   if (o.appearance !== undefined) {
-    if (typeof o.appearance !== 'string' || !(APPEARANCES as string[]).includes(o.appearance)) throw new BadInput('Appearance must be system, light or dark.');
+    if (typeof o.appearance !== 'string' || !(APPEARANCES as string[]).includes(o.appearance)) throw new BadInput('Appearance must be system, light, dark or matrix.');
     out.appearance = o.appearance as SettingsPatch['appearance'];
   }
   return out;
@@ -113,6 +114,7 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
 
   handle(CHANNELS.getSnapshot, () => svc.getSnapshot());
   handle(CHANNELS.startScan, async () => { await svc.startScan(); });
+  handle(CHANNELS.syncNotion, async () => { await svc.syncNotion(); });
   handle(CHANNELS.addCriterion, (name, text) => svc.addCriterion(str(name, 'name', 255), str(text, 'text', CRITERION_MAX)));
   handle(CHANNELS.setCriterion, (name, blockId, checked) => svc.setCriterion(str(name, 'name', 255), str(blockId, 'blockId', 100), bool(checked, 'checked')));
   handle(CHANNELS.promote, (name, s) => svc.promote(str(name, 'name', 255), swap(s)));
@@ -120,6 +122,7 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
   handle(CHANNELS.kill, (name) => svc.kill(str(name, 'name', 255)));
   handle(CHANNELS.unpark, (name) => svc.unpark(str(name, 'name', 255)));
   handle(CHANNELS.markShipped, (name) => svc.markShipped(str(name, 'name', 255)));
+  handle(CHANNELS.reopen, (name, focus) => svc.reopen(str(name, 'name', 255), bool(focus, 'focus')));
   handle(CHANNELS.addToNotion, (name) => svc.addToNotion(str(name, 'name', 255)));
   handle(CHANNELS.groupFolder, (name, into) => svc.groupFolder(str(name, 'name', 255), str(into, 'into', 255)));
   handle(CHANNELS.ungroupFolder, (name) => svc.ungroupFolder(str(name, 'name', 255)));
@@ -131,6 +134,8 @@ export function registerIpc(ipc: IpcMainLike, svc: DashboardService, opts: IpcOp
   handle(CHANNELS.saveSettings, (p) => svc.saveSettings(patch(p)));
   handle(CHANNELS.setToken, (t) => svc.setToken(t === null ? null : str(t, 'token', 500)));
   handle(CHANNELS.openLink, (name, k) => svc.openLink(str(name, 'name', 255), kind(k)));
+  handle(CHANNELS.openIdea, (id) => svc.openIdea(str(id, 'pageId', 64)));
+  handle(CHANNELS.startNewProject, (idea) => svc.startNewProject(str(idea, 'idea', IDEA_MAX)));
 }
 
 export type { Result };

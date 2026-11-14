@@ -103,17 +103,19 @@ export function Parked({ snap, now, onQuickLook }: { snap: Snapshot; now: Date; 
 
 export function Shipped({ snap, now, onQuickLook }: { snap: Snapshot; now: Date; onQuickLook: (name: string) => void }) {
   const rows = useMemo(() => shippedRows(snap.projects, now), [snap.projects, now]);
+  const access = writeAccess(snap.notion);
   return (
     <section className="card" aria-labelledby="ship-t" data-view="shipped">
       <div className="hd"><h3 id="ship-t">Shipped</h3><span className="mut small">{rows.length} at General Available</span></div>
       {rows.length === 0
         ? <div className="empty inner" data-state="shipped-empty"><b>Nothing shipped yet</b><span>When every ship criterion on a focus project is done, Mark shipped moves it here.</span></div>
-        : <div className="tw"><table><thead><tr><th>Project</th><th>Shipped</th><th className="r">Criteria met</th></tr></thead><tbody>
+        : <div className="tw"><table><thead><tr><th>Project</th><th>Shipped</th><th className="r">Criteria met</th><th className="r">Action</th></tr></thead><tbody>
           {rows.map((r) => (
             <tr key={r.name} data-shipped={r.name}>
               <td><button className="link" onClick={() => onQuickLook(r.name)}><div className="pn"><b>{r.title}</b><span className="mono">{r.name}</span></div></button></td>
               <td className="num">{r.shippedOn ? `${fmtDate(new Date(r.shippedOn))}${r.daysAgo !== undefined ? `, ${r.daysAgo === 0 ? 'today' : plural(r.daysAgo, 'day') + ' ago'}` : ''}` : <span className="mut">Date unknown</span>}</td>
               <td className="num r">{r.criteria}</td>
+              <td className="r"><ProjectActions projects={snap.projects} project={snap.projects.find((x) => x.name === r.name)!} now={now} canWrite={access.properties && !snap.scanning} why={access.reason} /></td>
             </tr>
           ))}
         </tbody></table></div>}
